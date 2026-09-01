@@ -892,6 +892,15 @@ export class Track {
     return { x: p.x, z: p.z, yaw: Math.atan2(p.tx, p.tz) };
   }
 
+  // Onko auto karannut kokonaan ruudukon ulkopuolelle? Tämä on viimeinen verkko,
+  // joka estää loputtoman tyhjyyteen ajamisen jos törmäys jostain syystä pettää.
+  outOfBounds(x, z) {
+    const maxX = this.minX + (this.nx - 1) * CELL;
+    const maxZ = this.minZ + (this.nz - 1) * CELL;
+    const m = 8;
+    return x < this.minX - m || x > maxX + m || z < this.minZ - m || z > maxZ + m;
+  }
+
   // Turvallinen palautuspiste: lähin keskilinjan piste ajosuuntaan.
   respawnNear(x, z) {
     if (this.def.kind === 'lot') return this.spawnPoint();

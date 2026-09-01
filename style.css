@@ -396,6 +396,21 @@ kbd {
   display: flex; align-items: flex-end; gap: 12px;
 }
 #gauges { width: 280px; height: 140px; filter: drop-shadow(0 6px 20px rgba(0, 0, 0, 0.55)); }
+.tire-badge {
+  pointer-events: auto;
+  align-self: flex-end;
+  margin-bottom: 12px;
+  padding: 9px 12px;
+  border-radius: 10px;
+  font-size: 10.5px; font-weight: 800; letter-spacing: 0.14em;
+  background: rgba(10, 12, 17, 0.62);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(9px); -webkit-backdrop-filter: blur(9px);
+}
+.tire-badge.drift { color: var(--accent); border-color: rgba(255, 46, 99, 0.45); }
+.tire-badge.grip { color: var(--mint); border-color: rgba(46, 230, 168, 0.45); }
+.tbtn.tire { background: rgba(140, 160, 255, 0.16); border-color: rgba(140, 160, 255, 0.36); height: 46px; font-size: 10px; }
+
 .gear-box {
   display: flex; flex-direction: column; align-items: center; justify-content: center;
   width: 62px; height: 62px; border-radius: 12px;
@@ -412,6 +427,14 @@ kbd {
   background: rgba(255, 255, 255, 0.12); overflow: hidden;
 }
 #progressFill { height: 100%; width: 0; background: linear-gradient(90deg, var(--mint), var(--amber)); transition: width 0.2s linear; }
+
+#offTrack {
+  position: absolute; top: 22%; left: 50%; transform: translateX(-50%);
+  padding: 10px 20px; border-radius: 8px;
+  background: rgba(255, 46, 99, 0.9); color: #fff;
+  font-size: 15px; font-weight: 800; letter-spacing: 0.16em;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5);
+}
 
 #dangerVignette {
   position: absolute; inset: 0; opacity: 0;
@@ -484,7 +507,22 @@ kbd {
   .car-picker { flex-direction: row; overflow-x: auto; overflow-y: hidden; flex: 0 0 auto; padding-bottom: 8px; }
   .car-item { min-width: 168px; }
   #gauges { width: 190px; height: 96px; }
-  .gear-box { width: 46px; height: 46px; }
+  .tire-badge {
+  pointer-events: auto;
+  align-self: flex-end;
+  margin-bottom: 12px;
+  padding: 9px 12px;
+  border-radius: 10px;
+  font-size: 10.5px; font-weight: 800; letter-spacing: 0.14em;
+  background: rgba(10, 12, 17, 0.62);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(9px); -webkit-backdrop-filter: blur(9px);
+}
+.tire-badge.drift { color: var(--accent); border-color: rgba(255, 46, 99, 0.45); }
+.tire-badge.grip { color: var(--mint); border-color: rgba(46, 230, 168, 0.45); }
+.tbtn.tire { background: rgba(140, 160, 255, 0.16); border-color: rgba(140, 160, 255, 0.36); height: 46px; font-size: 10px; }
+
+.gear-box { width: 46px; height: 46px; }
   .gear-box span { font-size: 20px; }
   .hud-top { gap: 6px; }
   .panel { padding: 7px 11px; }

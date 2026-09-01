@@ -1,8 +1,11 @@
 // Ajoneuvofysiikka: nelipyöräinen jäykkä kappale tasossa, rengasmalli yhdistetylle
 // luistolle, kuormansiirto, voimansiirto ja luistonestollinen tasauspyörästö.
 //
-// Koordinaatisto: X = oikea, Y = ylös, Z = eteen. yaw kiertää Y-akselin ympäri
-// oikeakätisesti, joten auton etusuunta maailmassa on (sin yaw, cos yaw).
+// Koordinaatisto: Y = ylös, Z = auton etusuunta, X = sivuttaisakseli. yaw kiertää
+// Y-akselin ympäri oikeakätisesti, joten etusuunta maailmassa on (sin yaw, cos yaw).
+// HUOM: oikeakätisessä kehyksessä paikallinen +X on auton VASEMMALLA. Fysiikka on
+// peilisymmetrinen ja sisäisesti johdonmukainen, joten pelaajan ohjaus käännetään
+// kerran step():ssä - älä kumoa sitä ilman että käyt koko kehyksen läpi.
 
 import { torqueAt } from './cars.js';
 
@@ -13,15 +16,21 @@ const AIR = 1.225;
 // luistolla kuin sivuttain - siksi erilliset normalisoinnit.
 const PEAK_LONG = 0.13;
 const PEAK_LAT = 0.21;
-// Kuinka paljon pidosta jää jäljelle täysin saturoituneella renkaalla. Tämä luku ratkaisee
-// driftin hallittavuuden: liian matala = auto lähtee lapasesta, liian korkea = ei liu'u.
-const TAIL = 0.74;
-
-function tireCurve(s) {
+// tail = kuinka paljon pidosta jää jäljelle täysin saturoituneella renkaalla. Tämä luku
+// ratkaisee luiston hallittavuuden: matala = auto lähtee lapasesta, korkea = ei liu'u.
+function tireCurve(s, tail) {
   if (s <= 1e-4) return 0;
   if (s <= 1) return Math.sin(Math.PI * 0.5 * s);
-  return TAIL + (1 - TAIL) * Math.exp(-(s - 1) * 0.85);
+  return tail + (1 - tail) * Math.exp(-(s - 1) * 0.85);
 }
+
+// Kaksi rengassarjaa. Driftirenkaissa taka on tarkoituksella pehmeämpi ja luistaa
+// ennustettavasti; kisarenkaissa taka pitää enemmän kuin etu, jolloin auto on vakaa
+// eikä yliohjaa - silloin ajetaan kierrosaikaa, ei kulmaa.
+export const TIRE_SETS = {
+  drift: { name: 'DRIFT', front: 1.00, rear: 1.00, tail: 0.74, peakLat: 0.21 },
+  grip: { name: 'PITO', front: 1.10, rear: 1.22, tail: 0.88, peakLat: 0.17 }
+};
 
 function clamp(v, a, b) { return v < a ? a : v > b ? b : v; }
 function lerp(a, b, t) { return a + (b - a) * t; }
@@ -78,7 +87,9 @@ export class Vehicle {
     this.accelLong = 0; this.accelLat = 0;
     this.pitch = 0; this.roll = 0;
     this.damage = 0;
+    this.tireMode = this.tireMode || 'drift';
     this.lastImpact = 0;
+    this.frameImpact = 0;
     this.airTime = 0;
     for (const w of this.wheels) { w.omega = 0; w.spin = 0; w.fx = 0; w.fy = 0; w.slipSpeed = 0; }
   }
@@ -123,19 +134,35 @@ export class Vehicle {
     // Alle 4 ms:n askel pitää rengasmallin vakaana myös 30 fps:llä.
     const steps = Math.max(1, Math.min(8, Math.ceil(dt / 0.004)));
     const h = dt / steps;
-    for (let i = 0; i < steps; i++) this.step(h, input, world);
+    // Törmäys tarkistetaan jokaisen aliaskeleen jälkeen, ei kerran ruudussa. Muuten
+    // auto ehtisi hitaalla ruudunpäivityksellä liikkua seinän läpi yhdessä hypyssä.
+    for (let i = 0; i < steps; i++) {
+      this.step(h, input, world);
+      if (world && world.collide) {
+        const hit = world.collide(this);
+        if (hit > this.frameImpact) this.frameImpact = hit;
+      }
+    }
     // Vaihtaminen tapahtuu kerran ruudussa, ei joka aliaskeleella - muuten automaatti
     // ehtisi vaihtaa läpi koko laatikon yhden ruudun aikana.
     if (input.autoGear) this.autoShift(input);
     this.updateVisuals(dt);
   }
 
+  // Kovin osuma tämän ruudun aikana; main lukee ja nollaa sen efektejä varten.
+  takeImpact() { const v = this.frameImpact; this.frameImpact = 0; return v; }
+
   step(h, input, world) {
     const spec = this.spec;
     const speed = this.speed;
+    const tires = TIRE_SETS[this.tireMode] || TIRE_SETS.drift;
 
     // --- ohjaus -------------------------------------------------------------
-    let target = input.steer * spec.maxSteer;
+    // HUOM kääntömerkki: oikeakätisessä Y-ylös -koordinaatistossa +Z:aan katsovan
+    // kappaleen paikallinen +X osoittaa sen VASEMMALLE, ei oikealle. Fysiikka on
+    // sisäisesti johdonmukainen tässä kehyksessä (ja peilisymmetrinen), joten
+    // pelaajan ohjaus käännetään kerran tässä - silloin D kääntää ruudulla oikealle.
+    let target = -input.steer * spec.maxSteer;
     if (input.assist > 0 && speed > 4) {
       // Vastaohjausapu on turvaverkko, ei autopilotti: se lisää vastaohjausta vasta kun
       // kulma ylittää noin 30 astetta. Alle sen pelaaja saa driftata täysin itse.
@@ -277,16 +304,16 @@ export class Vehicle {
       w.slipAngle = Math.atan2(tLat, Math.max(Math.abs(tLon), 0.6));
 
       const sxn = slipLong / PEAK_LONG;
-      const syn = slipLat / PEAK_LAT;
+      const syn = slipLat / tires.peakLat;
       const sn = Math.hypot(sxn, syn);
 
-      const mu = (w.front ? spec.gripFront : spec.gripRear) * w.grip
+      const mu = (w.front ? spec.gripFront * tires.front : spec.gripRear * tires.rear) * w.grip
         * (input.handbrake && !w.front ? 0.86 : 1)
         * (1 - this.damage * 0.12);
       // Kuormariippuvainen kitka: rengas menettää suhteellista pitoa kuorman kasvaessa.
       const loadFactor = 1.06 - 0.055 * (w.load / 3600);
       const fmax = mu * loadFactor * w.load;
-      const f = tireCurve(sn) * fmax;
+      const f = tireCurve(sn, tires.tail) * fmax;
 
       const fLon = sn > 1e-5 ? -f * sxn / sn : 0;
       const fLat = sn > 1e-5 ? -f * syn / sn : 0;

@@ -49,39 +49,39 @@ export function upgradeCost(key, level) {
 
 export const CARS = [
   {
-    id: 'm5',
-    name: 'BMW M5 E39',
+    id: 'aurum',
+    name: 'Aurum S550',
     tier: 'Aloittelija',
     price: 0,
-    blurb: 'Neljän oven lepakko: iso V8, pitkä akseliväli ja rauhallinen luonne. Antaa anteeksi, kun kulma karkaa.',
+    blurb: 'Neljän oven lepakko. Iso V8, pitkä akseliväli ja rauhallinen luonne - antaa anteeksi kun kulma karkaa.',
     mass: 1795, wheelbase: 2.83, trackWidth: 1.54, weightFront: 0.52, cgHeight: 0.52,
     wheelRadius: 0.325, wheelInertia: 1.8, maxSteer: 40, grip: 1.02,
     idle: 720, redline: 7000, engineInertia: 0.28,
     torque: [[1000, 330], [2000, 440], [3800, 500], [5000, 490], [6600, 435], [7000, 398]],
     gears: [4.23, 2.51, 1.67, 1.23, 1.00, 0.83], final: 3.15,
     dragArea: 0.66, downforce: 0.07, brakeTorque: 3000,
-    body: { length: 4.78, width: 1.80, height: 1.41, shape: 'sedan', color: '#4a4f5a' }
+    body: { length: 4.78, width: 1.80, height: 1.41, shape: 'sedan', color: '#1b3fa8' }
   },
   {
-    id: 'amggt',
-    name: 'Mercedes-AMG GT R',
+    id: 'sturm',
+    name: 'Sturmwind GT',
     tier: 'Keskisarja',
     price: 65000,
-    blurb: 'Pitkä keula, taakse sijoitettu vaihteisto. Biturbo-V8 vääntää kulman auki milloin tahansa.',
+    blurb: 'Loputon konepelti ja ohjaamo takana. Biturbo-V8 vääntää kulman auki milloin tahansa.',
     mass: 1615, wheelbase: 2.63, trackWidth: 1.68, weightFront: 0.47, cgHeight: 0.46,
     wheelRadius: 0.340, wheelInertia: 1.8, maxSteer: 40, grip: 1.10,
     idle: 700, redline: 7000, engineInertia: 0.29,
     torque: [[1200, 420], [2100, 700], [4000, 700], [5500, 700], [6250, 662], [7000, 570]],
     gears: [3.40, 2.19, 1.63, 1.29, 1.03, 0.84, 0.67], final: 3.67,
     dragArea: 0.63, downforce: 0.22, brakeTorque: 3600,
-    body: { length: 4.55, width: 1.94, height: 1.29, shape: 'coupe', color: '#28614a' }
+    body: { length: 4.55, width: 1.94, height: 1.29, shape: 'coupe', color: '#c9ccd2' }
   },
   {
-    id: 'gt3',
-    name: 'Porsche 911 GT3',
+    id: 'falke',
+    name: 'Falke 900 RS',
     tier: 'Ammattilainen',
     price: 150000,
-    blurb: 'Takamoottori ja 9000 kierrosta. Heiluri elää omaa elämäänsä - vaativin ja palkitsevin.',
+    blurb: 'Takamoottori ja 9000 kierrosta. Heiluri elää omaa elämäänsä - vaativin ja palkitsevin auto tallissa.',
     mass: 1435, wheelbase: 2.46, trackWidth: 1.60, weightFront: 0.43, cgHeight: 0.43,
     wheelRadius: 0.345, wheelInertia: 1.6, maxSteer: 46, grip: 1.13,
     idle: 900, redline: 9000, engineInertia: 0.19,
@@ -91,32 +91,32 @@ export const CARS = [
     body: { length: 4.57, width: 1.85, height: 1.28, shape: 'rear', color: '#e9ebee' }
   },
   {
-    id: 'rb19',
-    name: 'Red Bull RB19',
+    id: 'apex',
+    name: 'Apex F-01',
     tier: 'Kilpasarja',
     price: 380000,
-    blurb: 'Avopyöräinen formula. Maakiinnitys liimaa auton radalle - kulman saa auki vain hurjalla vauhdilla.',
+    blurb: 'Avopyöräinen kilpuri. Maakiinnitys liimaa auton radalle - kulman saa auki vain hurjalla vauhdilla.',
     mass: 798, wheelbase: 3.60, trackWidth: 1.85, weightFront: 0.45, cgHeight: 0.28,
     wheelRadius: 0.360, wheelInertia: 1.3, maxSteer: 38, grip: 1.34,
     idle: 4000, redline: 15000, engineInertia: 0.09,
     torque: [[4000, 340], [7000, 480], [9500, 560], [11500, 592], [13000, 570], [15000, 470]],
     gears: [3.60, 2.70, 2.15, 1.78, 1.50, 1.28, 1.08, 0.92], final: 6.90,
     dragArea: 1.30, downforce: 2.00, brakeTorque: 7000,
-    body: { length: 5.60, width: 2.00, height: 0.95, shape: 'formula', color: '#12206b' }
+    body: { length: 5.60, width: 2.00, height: 0.95, shape: 'formula', color: '#101a4e' }
   },
   {
-    id: 'chiron',
-    name: 'Bugatti Chiron',
+    id: 'chimera',
+    name: 'Chimera W16',
     tier: 'Kilpasarja',
     price: 900000,
-    blurb: 'Kaksi tonnia ja 1500 hevosvoimaa. Mitään ei voi tehdä varovasti - ei edes kulman avaamista.',
+    blurb: 'Kaksi tonnia, kuusitoista sylinteriä, neljä ahdinta. Mitään ei voi tehdä varovasti.',
     mass: 1995, wheelbase: 2.71, trackWidth: 1.68, weightFront: 0.44, cgHeight: 0.44,
     wheelRadius: 0.360, wheelInertia: 2.1, maxSteer: 38, grip: 1.22,
     idle: 800, redline: 6900, engineInertia: 0.42,
     torque: [[1500, 900], [2000, 1600], [4000, 1600], [6000, 1600], [6700, 1600], [6900, 1450]],
     gears: [2.77, 1.80, 1.29, 0.97, 0.77, 0.63, 0.51], final: 4.35,
     dragArea: 0.72, downforce: 0.55, brakeTorque: 5200,
-    body: { length: 4.54, width: 2.04, height: 1.21, shape: 'hyper', color: '#123a86' }
+    body: { length: 4.54, width: 2.04, height: 1.21, shape: 'hyper', color: '#2b7fd4' }
   }
 ];
 

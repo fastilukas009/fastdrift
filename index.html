@@ -40,11 +40,13 @@
     <div id="toasts"></div>
 
     <div class="hud-bottom">
+      <button id="tireBadge" class="tire-badge drift">DRIFT</button>
       <div class="gear-box"><span id="gearValue">1</span><small id="gearMode">AUTO</small></div>
       <canvas id="gauges" width="420" height="210"></canvas>
     </div>
 
     <div id="progressWrap" class="hidden"><div id="progressFill"></div></div>
+    <div id="offTrack" class="hidden">PALAA RADALLE</div>
     <div id="dangerVignette"></div>
   </div>
 
@@ -54,6 +56,7 @@
     <div class="touch-right">
       <button id="touchBrake" class="tbtn brake">JARRU</button>
       <button id="touchHand" class="tbtn hand">KÄSI</button>
+      <button id="touchTire" class="tbtn tire">RENKAAT</button>
       <button id="touchGas" class="tbtn gas">KAASU</button>
     </div>
   </div>
@@ -140,6 +143,7 @@
               <li><kbd>Väli</kbd><span>Käsijarru</span></li>
               <li><kbd>Shift</kbd><span>Kytkin (kytkinpotku)</span></li>
               <li><kbd>Q</kbd> <kbd>E</kbd><span>Vaihteet manuaalilla</span></li>
+              <li><kbd>T</kbd><span>Renkaat: drift / kisapito</span></li>
               <li><kbd>C</kbd><span>Kamera</span></li>
               <li><kbd>R</kbd><span>Palauta radalle</span></li>
               <li><kbd>Esc</kbd><span>Tauko</span></li>

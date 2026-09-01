@@ -10,7 +10,7 @@ const KEYMAP = {
   Space: 'handbrake',
   ShiftLeft: 'clutch', ShiftRight: 'clutch',
   KeyQ: 'shiftDown', KeyE: 'shiftUp',
-  KeyC: 'camera', KeyR: 'reset', KeyH: 'hud'
+  KeyC: 'camera', KeyR: 'reset', KeyH: 'hud', KeyT: 'tire'
 };
 
 export class Input {
@@ -49,6 +49,7 @@ export class Input {
       if (a === 'camera') this.fire('camera');
       if (a === 'reset') this.fire('reset');
       if (a === 'hud') this.fire('hud');
+      if (a === 'tire') this.fire('tire');
     };
     this._up = (e) => {
       const a = KEYMAP[e.code];

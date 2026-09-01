@@ -10,6 +10,7 @@ import { buildCar, syncCarModel } from './carmodel.js';
 import { Input } from './input.js';
 import { GameAudio } from './audio.js';
 import { UI } from './ui.js';
+import { PostFX } from './postfx.js';
 import { loadSave, persist, persistNow, ensureCarState, recordRun } from './save.js';
 
 const ENVIRONMENTS = {
@@ -17,25 +18,29 @@ const ENVIRONMENTS = {
     top: '#3f7fd8', horizon: '#c9dcf0', ground: '#3a3f46',
     sun: [0.45, 0.72, 0.3], sunColor: 0xfff3dd, sunIntensity: 2.6,
     ambient: 0x9fb4cc, ambientIntensity: 0.85,
-    fog: 0xb9cadd, fogDensity: 0.0026, exposure: 1.0
+    fog: 0xb9cadd, fogDensity: 0.0024, exposure: 1.0,
+    look: { tint: 0xfff8ee, vignette: 0.5, saturation: 1.12, contrast: 1.09 }
   },
   dusk: {
     top: '#1d2450', horizon: '#f2865a', ground: '#241d22',
     sun: [-0.62, 0.34, -0.36], sunColor: 0xffc08c, sunIntensity: 3.0,
     ambient: 0x7a6a8b, ambientIntensity: 1.15,
-    fog: 0x86606a, fogDensity: 0.0034, exposure: 1.08
+    fog: 0x86606a, fogDensity: 0.0032, exposure: 1.08,
+    look: { tint: 0xffe2c4, vignette: 0.62, saturation: 1.18, contrast: 1.08 }
   },
   night: {
     top: '#05070f', horizon: '#111a2c', ground: '#0a0c12',
     sun: [0.3, 0.6, -0.5], sunColor: 0x9fb6e0, sunIntensity: 0.5,
     ambient: 0x24304a, ambientIntensity: 0.55,
-    fog: 0x0a0e18, fogDensity: 0.008, exposure: 1.25
+    fog: 0x0a0e18, fogDensity: 0.0072, exposure: 1.25,
+    look: { tint: 0xd8e4ff, vignette: 0.78, saturation: 1.02, contrast: 1.12 }
   },
   studio: {
-    top: '#2a2f3a', horizon: '#12151c', ground: '#08090d',
-    sun: [0.35, 0.85, 0.4], sunColor: 0xffffff, sunIntensity: 2.6,
-    ambient: 0x5c6578, ambientIntensity: 1.5,
-    fog: 0x07080b, fogDensity: 0.009, exposure: 1.15
+    top: '#3d434f', horizon: '#171b24', ground: '#0a0b10',
+    sun: [0.35, 0.85, 0.4], sunColor: 0xffffff, sunIntensity: 3.4,
+    ambient: 0x7d879b, ambientIntensity: 2.2,
+    fog: 0x07080b, fogDensity: 0.009, exposure: 1.15,
+    look: { tint: 0xffffff, vignette: 0.68, saturation: 1.06, contrast: 1.04 }
   }
 };
 
@@ -43,45 +48,51 @@ const ENVIRONMENTS = {
 // joten auton maalipinta heijastaa juuri sitä taivasta jonka pelaaja näkee.
 function skyCanvas(env) {
   const c = document.createElement('canvas');
-  c.width = 1024; c.height = 512;
+  c.width = 2048; c.height = 1024;
   const ctx = c.getContext('2d');
-  const g = ctx.createLinearGradient(0, 0, 0, 512);
+  const W = 2048, H = 1024;
+  const g = ctx.createLinearGradient(0, 0, 0, H);
   g.addColorStop(0, env.top);
-  g.addColorStop(0.46, env.horizon);
-  g.addColorStop(0.52, env.ground);
+  g.addColorStop(0.34, env.top);
+  g.addColorStop(0.47, env.horizon);
+  g.addColorStop(0.502, env.horizon);
+  g.addColorStop(0.515, env.ground);
   g.addColorStop(1, env.ground);
   ctx.fillStyle = g;
-  ctx.fillRect(0, 0, 1024, 512);
+  ctx.fillRect(0, 0, W, H);
 
   const sun = env.sun;
   const az = Math.atan2(sun[0], sun[2]);
   const el = Math.asin(Math.max(-1, Math.min(1, sun[1])));
-  const sx = ((az / (Math.PI * 2) + 0.5) % 1) * 1024;
-  const sy = (0.5 - el / Math.PI) * 512;
-  const halo = ctx.createRadialGradient(sx, sy, 2, sx, sy, 200);
-  halo.addColorStop(0, 'rgba(255,255,245,1)');
-  halo.addColorStop(0.06, 'rgba(255,240,205,0.85)');
-  halo.addColorStop(0.4, 'rgba(255,214,160,0.16)');
-  halo.addColorStop(1, 'rgba(255,200,140,0)');
+  const sx = ((az / (Math.PI * 2) + 0.5) % 1) * W;
+  const sy = (0.5 - el / Math.PI) * H;
+  const halo = ctx.createRadialGradient(sx, sy, 2, sx, sy, 460);
+  halo.addColorStop(0, 'rgba(255,255,250,1)');
+  halo.addColorStop(0.022, 'rgba(255,252,238,1)');
+  halo.addColorStop(0.05, 'rgba(255,240,205,0.7)');
+  halo.addColorStop(0.22, 'rgba(255,222,175,0.22)');
+  halo.addColorStop(1, 'rgba(255,205,150,0)');
   ctx.fillStyle = halo;
-  ctx.fillRect(0, 0, 1024, 512);
+  ctx.fillRect(0, 0, W, H);
 
   if (env === ENVIRONMENTS.night) {
     ctx.fillStyle = '#fff';
-    for (let i = 0; i < 400; i++) {
-      const x = Math.random() * 1024, y = Math.random() * 240;
-      ctx.globalAlpha = Math.random() * 0.75;
-      ctx.fillRect(x, y, 1.4, 1.4);
+    for (let i = 0; i < 900; i++) {
+      const x = Math.random() * W, y = Math.random() * 470;
+      ctx.globalAlpha = Math.random() * 0.8;
+      const s = Math.random() < 0.1 ? 2.6 : 1.6;
+      ctx.fillRect(x, y, s, s);
     }
     ctx.globalAlpha = 1;
   } else {
     // Pilviharso: pehmeitä ellipsejä horisontin yläpuolelle.
     ctx.globalAlpha = 0.16;
     ctx.fillStyle = '#ffffff';
-    for (let i = 0; i < 60; i++) {
-      const x = Math.random() * 1024, y = 40 + Math.random() * 170;
+    for (let i = 0; i < 110; i++) {
+      const x = Math.random() * W, y = 90 + Math.random() * 340;
+      ctx.globalAlpha = 0.05 + Math.random() * 0.14;
       ctx.beginPath();
-      ctx.ellipse(x, y, 30 + Math.random() * 120, 6 + Math.random() * 18, 0, 0, Math.PI * 2);
+      ctx.ellipse(x, y, 60 + Math.random() * 260, 10 + Math.random() * 34, 0, 0, Math.PI * 2);
       ctx.fill();
     }
     ctx.globalAlpha = 1;
@@ -117,6 +128,8 @@ class Game {
     this.toastPool = [];
 
     this.buildShowroom();
+    this.post = new PostFX(this.renderer, this.showroom.scene, this.camera, this.state.settings.quality);
+    this.post.setLook(ENVIRONMENTS.studio.look);
     this.ui = new UI(this);
     this.bindInput();
     this.applyQuality();
@@ -130,6 +143,10 @@ class Game {
     const unlock = () => { this.audio.init(); this.audio.resume(); };
     window.addEventListener('pointerdown', unlock, { once: true });
     window.addEventListener('keydown', unlock, { once: true });
+
+    document.getElementById('tireBadge').addEventListener('click', () => this.toggleTires());
+    const touchTire = document.getElementById('touchTire');
+    if (touchTire) touchTire.addEventListener('click', () => this.toggleTires());
 
     if (this.touchMode) {
       this.input.bindTouch({
@@ -160,11 +177,30 @@ class Game {
     this.input.on('reset', () => this.respawn());
     this.input.on('shiftUp', () => { if (this.vehicle && !this.state.settings.autoGear) this.vehicle.shiftUp(); });
     this.input.on('shiftDown', () => { if (this.vehicle && !this.state.settings.autoGear) this.vehicle.shiftDown(); });
+    this.input.on('tire', () => this.toggleTires());
     this.input.on('hud', () => {
       this.state.settings.showHud = !this.state.settings.showHud;
       document.getElementById('hud').style.opacity = this.state.settings.showHud ? '1' : '0';
       persist(this.state);
     });
+  }
+
+  // Rengasvalinta kesken ajon. Vaihto katkaisee kesken olevan sarjan, jottei
+  // kisarenkaille voi vaihtaa juuri ennen pisteiden lukitsemista.
+  toggleTires() {
+    if (!this.vehicle) return;
+    const next = this.vehicle.tireMode === 'grip' ? 'drift' : 'grip';
+    this.vehicle.tireMode = next;
+    this.state.settings.tires = next;
+    persist(this.state);
+    if (this.scorer) this.scorer.bank();
+    this.audio.blip(next === 'grip' ? 880 : 520, 0.1, 0.1);
+    this.toast(next === 'grip' ? 'KISARENKAAT' : 'DRIFTIRENKAAT', 'good');
+    const el = document.getElementById('tireBadge');
+    if (el) {
+      el.textContent = next === 'grip' ? 'PITO' : 'DRIFT';
+      el.className = 'tire-badge ' + next;
+    }
   }
 
   // ------------------------------------------------------------- ympäristö
@@ -185,9 +221,11 @@ class Game {
     sun.position.set(env.sun[0] * 220, env.sun[1] * 220, env.sun[2] * 220);
     sun.castShadow = true;
     sun.shadow.mapSize.set(2048, 2048);
-    sun.shadow.camera.near = 20;
-    sun.shadow.camera.far = 520;
-    const d = 78;
+    sun.shadow.camera.near = 40;
+    sun.shadow.camera.far = 360;
+    // Tiukka varjokamera, joka seuraa autoa: sama resoluutio kattaa paljon
+    // pienemmän alueen, joten varjon reuna on terävä juuri siellä missä katsotaan.
+    const d = 44;
     sun.shadow.camera.left = -d; sun.shadow.camera.right = d;
     sun.shadow.camera.top = d; sun.shadow.camera.bottom = -d;
     sun.shadow.bias = -0.0009;
@@ -291,6 +329,10 @@ class Game {
     const cs = ensureCarState(this.state, carId);
     this.spec = buildSpec(carId, cs.upgrades, { ...cs.tune, assistOverride: undefined });
     this.vehicle = new Vehicle(this.spec);
+    this.vehicle.tireMode = this.state.settings.tires || 'drift';
+    const badge = document.getElementById('tireBadge');
+    badge.textContent = this.vehicle.tireMode === 'grip' ? 'PITO' : 'DRIFT';
+    badge.className = 'tire-badge ' + this.vehicle.tireMode;
     for (let i = 0; i < 4; i++) this.vehicle.wheels[i].index = i;
     this.carModel = buildCar(this.spec, cs.paint);
     scene.add(this.carModel);
@@ -309,6 +351,7 @@ class Game {
     }
 
     this.scorer = new DriftScorer(this.track);
+    if (this.post && lights.env.look) this.post.setLook(lights.env.look);
     this.applyQuality();
   }
 
@@ -342,6 +385,8 @@ class Game {
     this.progress = 0;
     this.runTime = 0;
     this.finished = false;
+    this.offTrack = 0;
+    document.getElementById('offTrack').classList.add('hidden');
     document.getElementById('progressWrap').classList.toggle('hidden', def.mode !== 'sprint');
     document.getElementById('timerPanel').classList.toggle('hidden', def.mode === 'free');
     // Kamera aloittaa radan korkeudelta - mäkisellä radalla nollataso olisi maan alla.
@@ -414,6 +459,7 @@ class Game {
     const cap = q === 'low' ? 1 : q === 'medium' ? 1.35 : 2;
     this.renderer.setPixelRatio(Math.min(dpr, cap));
     this.renderer.shadowMap.enabled = this.state.settings.shadows && q !== 'low';
+    if (this.post) this.post.setQuality(q);
     const size = q === 'high' ? 2048 : 1024;
     for (const w of [this.world, this.showroom]) {
       if (!w || !w.lights) continue;
@@ -430,6 +476,7 @@ class Game {
   resize() {
     const w = window.innerWidth, h = window.innerHeight;
     this.renderer.setSize(w, h, false);
+    if (this.post) this.post.setSize(w, h);
     this.camera.aspect = w / h;
     this.camera.updateProjectionMatrix();
     const g = document.getElementById('gauges');
@@ -486,8 +533,11 @@ class Game {
       this.updateShowroom(dt);
     }
 
-    if (this.view === 'showroom') this.renderer.render(this.showroom.scene, this.camera);
-    else if (this.world) this.renderer.render(this.world.scene, this.camera);
+    const scene = this.view === 'showroom' ? this.showroom.scene : (this.world && this.world.scene);
+    if (!scene) return;
+    if (this.post.renderPass.scene !== scene) this.post.setScene(scene, this.camera);
+    this.post.update(dt, this.vehicle && this.mode !== 'menu' ? this.vehicle.speedKmh : 0, this.shake);
+    this.post.render();
 
     this.state.stats.playTime += dt;
   }
@@ -525,7 +575,7 @@ class Game {
     }
 
     v.update(dt, input, this.track);
-    const impact = this.track.collide(v);
+    const impact = v.takeImpact();
     if (impact > 1.2) {
       this.audio.crash(impact);
       this.shake = Math.min(1, this.shake + impact * 0.06);
@@ -562,6 +612,7 @@ class Game {
       this.effects.emitExhaust(wx, v.y + p.y, wz, -v.vx, -v.vz, input.throttle);
     }
 
+    this.followSun(v);
     syncCarModel(this.carModel, v, dt);
     this.effects.update(dt, this.camera);
     this.updateCamera(dt, v);
@@ -569,7 +620,10 @@ class Game {
     this.audio.update(dt, v, { throttle: input.throttle, surfaceGrip: surf.grip });
     this.updateHud(dt, v, input);
 
-    if (!frozen) this.checkRunEnd(dt, surf);
+    if (!frozen) {
+      this.checkRunEnd(dt, surf);
+      this.checkBounds(dt, surf, v);
+    }
     this.state.stats.distance += v.speed * dt;
   }
 
@@ -681,7 +735,8 @@ class Game {
     this.camLook.z += (lz - this.camLook.z) * lk;
     this.camera.lookAt(this.camLook);
     // Pieni kallistus driftin suuntaan tekee liikkeestä elävämmän.
-    this.camera.rotateZ(-v.sideSlip * 0.05);
+    // sideSlip on peilatussa fysiikkakehyksessä, joten ruudulle päin merkki käännetään.
+    this.camera.rotateZ(v.sideSlip * 0.05);
     this.setFov((far ? 52 : 60) + Math.min(20, speed * 0.34));
   }
 
@@ -690,6 +745,17 @@ class Game {
       this.camera.fov += (f - this.camera.fov) * 0.12;
       this.camera.updateProjectionMatrix();
     }
+  }
+
+  // Varjokamera kulkee auton mukana. Ilman tätä varjot olisivat joko sumeita
+  // (iso kartta) tai katoaisivat kokonaan radan toisella puolella.
+  followSun(v) {
+    const lights = this.world && this.world.lights;
+    if (!lights || !lights.sun.castShadow) return;
+    const d = lights.env.sun;
+    lights.sun.position.set(v.x + d[0] * 150, v.y + d[1] * 150 + 30, v.z + d[2] * 150);
+    lights.sun.target.position.set(v.x, v.y, v.z);
+    lights.sun.target.updateMatrixWorld();
   }
 
   updateHeadlights(v) {
@@ -701,6 +767,27 @@ class Game {
       h.spot.position.set(v.x + px * cy + pz * sy, v.y + 0.65, v.z - px * sy + pz * cy);
       h.spot.target.position.set(v.x + sy * 28, v.y + 0.1, v.z + cy * 28);
       h.spot.target.updateMatrixWorld();
+    }
+  }
+
+  // Radan ulkopuolelle jääminen ei jumita peliä: ensin varoitus, sitten palautus.
+  checkBounds(dt, surf, v) {
+    if (this.track.outOfBounds(v.x, v.z) || v.y < -80) {
+      this.toast('RADAN ULKOPUOLELLA', 'bad');
+      this.respawn();
+      this.offTrack = 0;
+      return;
+    }
+    const far = this.track.halfWidth + (this.world.def.kind === 'lot' ? 6 : 11);
+    const off = surf.dist > far && v.speed > 1;
+    this.offTrack = off ? (this.offTrack || 0) + dt : 0;
+    const warn = document.getElementById('offTrack');
+    if (this.offTrack > 1.2) {
+      warn.classList.remove('hidden');
+      warn.textContent = 'PALAA RADALLE ' + Math.ceil(5 - this.offTrack);
+      if (this.offTrack > 5) { this.respawn(); this.offTrack = 0; }
+    } else if (!warn.classList.contains('hidden')) {
+      warn.classList.add('hidden');
     }
   }
 
@@ -732,7 +819,7 @@ class Game {
     document.getElementById('comboFill').style.width = ((s.multiplier - 1) / 9 * 100).toFixed(1) + '%';
     const deg = Math.abs(s.angle) * 180 / Math.PI;
     document.getElementById('comboAngle').textContent = Math.round(deg) + '°';
-    document.getElementById('angleNeedle').style.left = (50 + Math.max(-48, Math.min(48, s.angle * 180 / Math.PI * 0.52))) + '%';
+    document.getElementById('angleNeedle').style.left = (50 - Math.max(-48, Math.min(48, s.angle * 180 / Math.PI * 0.52))) + '%';
 
     const def = this.world.def;
     if (def.mode !== 'free') {

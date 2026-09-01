@@ -2,7 +2,7 @@
 
 import { CARS, defaultTune, defaultUpgrades, CAR_BY_ID } from './cars.js';
 
-const KEY = 'fastidrift.save.v3';
+const KEY = 'fastidrift.save.v4';
 const START_MONEY = 6000;
 
 function freshCarState(carId) {
@@ -31,6 +31,7 @@ export function freshSave() {
       camera: 'chase',
       sensitivity: 1,
       showHud: true,
+      tires: 'drift',
       shadows: true
     },
     stats: { totalScore: 0, runs: 0, distance: 0, bestCombo: 0, playTime: 0 }
