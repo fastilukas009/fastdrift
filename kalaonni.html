@@ -1,0 +1,520 @@
+<!DOCTYPE html>
+<html lang="fi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kalaonni — Suomen kalastuskelien mittari</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fjalla+One&family=Work+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --deep: #081720;
+    --deep2: #0E2530;
+    --panel: #12303B;
+    --panel-line: #234754;
+    --teal: #1F5C6B;
+    --reed: #4F8A5B;
+    --silver: #D9E6E2;
+    --silver-dim: #93AFAA;
+    --amber: #E39A54;
+    --ice: #8FC7D6;
+    --bad: #C1594F;
+    --good: #6FAE72;
+    --font-display: 'Fjalla One', sans-serif;
+    --font-body: 'Work Sans', sans-serif;
+    --font-mono: 'JetBrains Mono', monospace;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{
+    background:
+      radial-gradient(ellipse at top, #0F2C38 0%, var(--deep) 55%),
+      var(--deep);
+    color: var(--silver);
+    font-family: var(--font-body);
+    min-height:100vh;
+    padding: 0 0 60px 0;
+  }
+  .ripple-bg{
+    position:fixed; inset:0; z-index:-1; opacity:0.5;
+    background-image:
+      repeating-radial-gradient(circle at 20% 30%, rgba(143,199,214,0.04) 0px, rgba(143,199,214,0.04) 1px, transparent 2px, transparent 60px),
+      repeating-radial-gradient(circle at 80% 70%, rgba(79,138,91,0.04) 0px, rgba(79,138,91,0.04) 1px, transparent 2px, transparent 80px);
+  }
+  header{
+    text-align:center; padding: 40px 20px 20px;
+  }
+  .eyebrow{
+    font-family: var(--font-mono); letter-spacing:0.25em; font-size:11px;
+    color: var(--ice); text-transform:uppercase; opacity:0.8;
+  }
+  h1{
+    font-family: var(--font-display); font-size: clamp(38px,7vw,64px);
+    letter-spacing: 0.02em; color: var(--silver); margin-top:6px;
+    text-shadow: 0 0 30px rgba(143,199,214,0.15);
+  }
+  .tagline{ color: var(--silver-dim); font-size:15px; margin-top:8px; max-width:520px; margin-inline:auto;}
+
+  .controls{
+    max-width: 920px; margin: 30px auto 0; padding: 0 20px;
+    display:flex; gap:14px; flex-wrap:wrap; justify-content:center; align-items:flex-end;
+  }
+  .field{ display:flex; flex-direction:column; gap:6px; min-width:200px; flex:1;}
+  .field label{ font-family: var(--font-mono); font-size:11px; letter-spacing:0.1em; color: var(--ice); text-transform:uppercase;}
+  select, button{
+    font-family: var(--font-body); font-size:15px; padding:12px 14px;
+    background: var(--panel); border:1px solid var(--panel-line); color: var(--silver);
+    border-radius:6px; outline:none;
+  }
+  select:focus, button:focus-visible{ border-color: var(--ice); box-shadow:0 0 0 2px rgba(143,199,214,0.25);}
+  button#refreshBtn{
+    background: var(--reed); border-color: var(--reed); color: #0A1B0E; font-weight:600; cursor:pointer;
+    transition: filter 0.15s ease; flex:0 0 auto;
+  }
+  button#refreshBtn:hover{ filter:brightness(1.12);}
+  .updated{
+    text-align:center; font-family: var(--font-mono); font-size:12px; color: var(--silver-dim); margin-top:10px;
+  }
+
+  /* ---- GAUGE ---- */
+  .gauge-wrap{
+    max-width:920px; margin: 36px auto 0; padding: 0 20px;
+    display:flex; flex-direction:column; align-items:center; gap:6px;
+  }
+  .gauge-outer{
+    position:relative; width: min(340px, 80vw); aspect-ratio:1/1;
+    display:flex; align-items:center; justify-content:center;
+  }
+  .sweep{
+    position:absolute; inset:0; border-radius:50%;
+    background: conic-gradient(from 0deg, rgba(143,199,214,0.22), transparent 35%);
+    animation: spin 6s linear infinite;
+    mask-image: radial-gradient(circle, transparent 55%, black 56%, black 96%, transparent 97%);
+  }
+  @keyframes spin{ to{ transform: rotate(360deg);} }
+  svg.gauge{ position:relative; width:100%; height:100%; }
+  .gauge-center{
+    position:absolute; display:flex; flex-direction:column; align-items:center; justify-content:center;
+  }
+  .score-num{ font-family: var(--font-display); font-size:64px; line-height:1; color:var(--silver); }
+  .score-label{ font-family: var(--font-mono); letter-spacing:0.15em; font-size:13px; text-transform:uppercase; margin-top:4px;}
+  .verdict{
+    max-width:480px; text-align:center; color: var(--silver-dim); font-size:14px; margin-top:6px; min-height:20px;
+  }
+
+  /* ---- INSTRUMENT STRIP ---- */
+  .strip{
+    max-width:1080px; margin:40px auto 0; padding:0 20px;
+    display:grid; grid-template-columns: repeat(auto-fit, minmax(150px,1fr)); gap:12px;
+  }
+  .card{
+    background: var(--panel); border:1px solid var(--panel-line); border-radius:8px;
+    padding:16px 14px; position:relative; overflow:hidden;
+  }
+  .card::before{
+    content:''; position:absolute; top:0; left:0; width:3px; height:100%; background: var(--ice); opacity:0.5;
+  }
+  .card .label{ font-family: var(--font-mono); font-size:10px; letter-spacing:0.12em; color:var(--ice); text-transform:uppercase;}
+  .card .value{ font-family: var(--font-mono); font-size:24px; margin-top:6px; color:var(--silver);}
+  .card .sub{ font-size:12px; color:var(--silver-dim); margin-top:4px;}
+  .trend-up{ color: var(--bad); }
+  .trend-down{ color: var(--good); }
+  .trend-flat{ color: var(--ice); }
+
+  /* ---- SECTION HEADERS ---- */
+  .section-title{
+    max-width:1080px; margin: 50px auto 4px; padding:0 20px;
+    display:flex; align-items:baseline; gap:12px;
+  }
+  .section-title h2{ font-family: var(--font-display); font-size:26px; letter-spacing:0.02em;}
+  .section-title .rule{ flex:1; height:1px; background: var(--panel-line);}
+
+  .lure-grid{
+    max-width:1080px; margin:14px auto 0; padding:0 20px;
+    display:grid; grid-template-columns: repeat(auto-fit, minmax(240px,1fr)); gap:14px;
+  }
+  .lure-card{
+    background: linear-gradient(180deg, var(--panel), var(--deep2));
+    border:1px solid var(--panel-line); border-radius:10px; padding:18px;
+  }
+  .lure-card .tag{
+    display:inline-block; font-family: var(--font-mono); font-size:10px; letter-spacing:0.1em;
+    color: var(--deep); background: var(--amber); padding:3px 8px; border-radius:20px; text-transform:uppercase; margin-bottom:10px;
+  }
+  .lure-card h3{ font-family: var(--font-display); font-size:19px; color:var(--silver); font-weight:400;}
+  .lure-card p{ font-size:13.5px; color:var(--silver-dim); margin-top:8px; line-height:1.5;}
+  .lure-card .color-chip{ font-family:var(--font-mono); font-size:12px; color:var(--ice); margin-top:10px;}
+
+  footer{
+    max-width:920px; margin:60px auto 0; padding:20px; text-align:center;
+    font-size:12px; color:var(--silver-dim); border-top:1px solid var(--panel-line);
+  }
+  footer a{ color:var(--ice); }
+  .loading, .error{
+    text-align:center; padding:30px; color:var(--silver-dim); font-family:var(--font-mono); font-size:13px;
+  }
+  .error{ color: var(--bad); }
+
+  @media (max-width:520px){
+    .controls{ flex-direction:column; align-items:stretch;}
+    .field{ min-width:unset;}
+  }
+</style>
+</head>
+<body>
+<div class="ripple-bg"></div>
+
+<header>
+  <div class="eyebrow">Kalastuskelien tutka</div>
+  <h1>Kalaonni</h1>
+  <p class="tagline">Sää, ilmanpaine, tuuli ja kuun vaihe yhdeksi arvioksi — vain Suomen vesille.</p>
+</header>
+
+<div class="controls">
+  <div class="field">
+    <label for="locationSelect">Kalapaikka</label>
+    <select id="locationSelect"></select>
+  </div>
+  <div class="field">
+    <label for="speciesSelect">Kohdekala</label>
+    <select id="speciesSelect"></select>
+  </div>
+  <button id="refreshBtn">Päivitä keli</button>
+</div>
+<div class="updated" id="updatedText"></div>
+
+<div class="gauge-wrap">
+  <div class="gauge-outer">
+    <div class="sweep"></div>
+    <svg class="gauge" viewBox="0 0 300 300">
+      <path id="track" d="" fill="none" stroke="#1B3944" stroke-width="16" stroke-linecap="round"/>
+      <path id="arc" d="" fill="none" stroke="#8FC7D6" stroke-width="16" stroke-linecap="round"/>
+      <line id="needle" x1="150" y1="150" x2="150" y2="60" stroke="#E39A54" stroke-width="4" stroke-linecap="round"/>
+      <circle cx="150" cy="150" r="8" fill="#E39A54"/>
+    </svg>
+    <div class="gauge-center" style="top:60%;">
+      <div class="score-num" id="scoreNum">--</div>
+      <div class="score-label" id="scoreLabel">Ladataan</div>
+    </div>
+  </div>
+  <div class="verdict" id="verdictText"></div>
+</div>
+
+<div id="stripHost">
+  <div class="loading">Haetaan sää- ja kelitietoja…</div>
+</div>
+
+<div class="section-title"><h2>Uistinvinkit</h2><div class="rule"></div></div>
+<div class="lure-grid" id="lureGrid"></div>
+
+<footer>
+  Sääaineisto: Open-Meteo. Kuun vaihe laskettu paikallisesti. Arvio perustuu yleisiin kalastusnyrkkisääntöihin
+  (ilmanpaineen muutos, tuuli, pilvisyys, valoisuus ja kuun vaihe) — ei takaa saalista, vesistö- ja kalalajikohtaiset
+  erot voivat olla suuria.
+</footer>
+
+<script>
+const LOCATIONS = [
+  {name:"Helsinki — Suomenlahti", lat:60.1699, lon:24.9384},
+  {name:"Turku — Saaristomeri", lat:60.4518, lon:22.2666},
+  {name:"Tampere — Näsijärvi", lat:61.4978, lon:23.7610},
+  {name:"Lahti — Vesijärvi", lat:60.9827, lon:25.6612},
+  {name:"Jyväskylä — Päijänne", lat:62.2426, lon:25.7473},
+  {name:"Kuopio — Kallavesi", lat:62.8924, lon:27.6770},
+  {name:"Joensuu — Pyhäselkä", lat:62.6010, lon:29.7636},
+  {name:"Lappeenranta — Saimaa", lat:61.0587, lon:28.1887},
+  {name:"Vaasa — Merenkurkku", lat:63.0951, lon:21.6165},
+  {name:"Oulu — Perämeri", lat:65.0121, lon:25.4651},
+  {name:"Kemijärvi — Lappi", lat:66.7133, lon:27.4306},
+  {name:"Rovaniemi — Kemijoki", lat:66.5039, lon:25.7294},
+  {name:"Inari — Inarijärvi", lat:68.9059, lon:27.0286},
+];
+
+const SPECIES = [
+  {id:"hauki", name:"Hauki"},
+  {id:"kuha", name:"Kuha"},
+  {id:"ahven", name:"Ahven"},
+  {id:"taimen", name:"Taimen / Lohi"},
+  {id:"särki", name:"Särkikalat"},
+];
+
+const locSel = document.getElementById('locationSelect');
+LOCATIONS.forEach((l,i)=>{
+  const o = document.createElement('option'); o.value=i; o.textContent=l.name; locSel.appendChild(o);
+});
+
+const spSel = document.getElementById('speciesSelect');
+SPECIES.forEach((s)=>{
+  const o = document.createElement('option'); o.value=s.id; o.textContent=s.name; spSel.appendChild(o);
+});
+
+function degToCompassFi(deg){
+  const dirs=['P','KO','I','KA','E','LO','L','LU'];
+  const idx = Math.round(deg/45) % 8;
+  return dirs[idx];
+}
+
+function moonPhase(date){
+  const synodic = 29.53058867;
+  const knownNewMoon = Date.UTC(2000,0,6,18,14,0);
+  let diffDays = (date.getTime() - knownNewMoon) / 86400000;
+  let phase = (diffDays % synodic) / synodic;
+  if(phase < 0) phase += 1;
+  return phase; // 0 = new, 0.5 = full
+}
+
+function moonPhaseInfo(date){
+  const phase = moonPhase(date);
+  const daysToNew = Math.min(phase, 1-phase) * 29.53;
+  const daysToFull = Math.abs(phase - 0.5) * 29.53;
+  const minDays = Math.min(daysToNew, daysToFull);
+  let name, icon;
+  if(phase < 0.03 || phase > 0.97){ name="Uusikuu"; icon="🌑"; }
+  else if(phase < 0.22){ name="Kasvava sirppi"; icon="🌒"; }
+  else if(phase < 0.28){ name="Puolikuu (kasvava)"; icon="🌓"; }
+  else if(phase < 0.47){ name="Kasvava kupera"; icon="🌔"; }
+  else if(phase < 0.53){ name="Täysikuu"; icon="🌕"; }
+  else if(phase < 0.72){ name="Vähenevä kupera"; icon="🌖"; }
+  else if(phase < 0.78){ name="Puolikuu (vähenevä)"; icon="🌗"; }
+  else { name="Vähenevä sirppi"; icon="🌘"; }
+  return {phase, minDays, name, icon};
+}
+
+function scoreLabel(score){
+  if(score >= 75) return {text:"Erinomainen", color:"var(--good)"};
+  if(score >= 55) return {text:"Hyvä", color:"var(--ice)"};
+  if(score >= 35) return {text:"Kohtalainen", color:"var(--amber)"};
+  return {text:"Heikko", color:"var(--bad)"};
+}
+
+function setGauge(score){
+  score = Math.max(0, Math.min(100, Math.round(score)));
+  const startAngle = -135, endAngle = 135, totalAngle = endAngle - startAngle;
+  const R = 120, cx = 150, cy = 150;
+  function polar(angleDeg){
+    const rad = (angleDeg - 90) * Math.PI/180;
+    return [cx + R*Math.cos(rad), cy + R*Math.sin(rad)];
+  }
+  function arcPath(a0, a1){
+    const [x0,y0] = polar(a0), [x1,y1] = polar(a1);
+    const large = (a1-a0) > 180 ? 1 : 0;
+    return `M ${x0} ${y0} A ${R} ${R} 0 ${large} 1 ${x1} ${y1}`;
+  }
+  document.getElementById('track').setAttribute('d', arcPath(startAngle, endAngle));
+  const scoreAngle = startAngle + (score/100)*totalAngle;
+  document.getElementById('arc').setAttribute('d', arcPath(startAngle, scoreAngle));
+  const needle = document.getElementById('needle');
+  needle.setAttribute('transform', `rotate(${scoreAngle} 150 150)`);
+  const lbl = scoreLabel(score);
+  document.getElementById('scoreNum').textContent = score;
+  document.getElementById('scoreNum').style.color = lbl.color;
+  document.getElementById('scoreLabel').textContent = lbl.text;
+  document.getElementById('scoreLabel').style.color = lbl.color;
+}
+
+function pressureTrendText(delta){
+  if(delta <= -1) return {text:`Laskee ${Math.abs(delta).toFixed(1)} hPa / 6h`, cls:"trend-down"};
+  if(delta >= 1) return {text:`Nousee ${delta.toFixed(1)} hPa / 6h`, cls:"trend-up"};
+  return {text:"Vakaa", cls:"trend-flat"};
+}
+
+async function fetchWeather(loc){
+  const url = `https://api.open-meteo.com/v1/forecast?latitude=${loc.lat}&longitude=${loc.lon}` +
+    `&hourly=temperature_2m,pressure_msl,wind_speed_10m,wind_direction_10m,cloud_cover` +
+    `&daily=sunrise,sunset&past_days=1&forecast_days=1&timezone=Europe%2FHelsinki&wind_speed_unit=ms`;
+  const res = await fetch(url);
+  if(!res.ok) throw new Error("Sään haku epäonnistui");
+  return res.json();
+}
+
+function nearestHourIndex(times){
+  const now = new Date();
+  let best = 0, bestDiff = Infinity;
+  times.forEach((t,i)=>{
+    const d = Math.abs(new Date(t).getTime() - now.getTime());
+    if(d < bestDiff){ bestDiff = d; best = i; }
+  });
+  return best;
+}
+
+function computeScore(data, idx){
+  const h = data.hourly;
+  const pressureNow = h.pressure_msl[idx];
+  const pressureBefore = h.pressure_msl[Math.max(0, idx-6)];
+  const delta = pressureNow - pressureBefore;
+  const wind = h.wind_speed_10m[idx];
+  const cloud = h.cloud_cover[idx];
+  const temp = h.temperature_2m[idx];
+  const now = new Date();
+  const moon = moonPhaseInfo(now);
+  const sunrise = new Date(data.daily.sunrise[1] || data.daily.sunrise[0]);
+  const sunset = new Date(data.daily.sunset[1] || data.daily.sunset[0]);
+  const minToSunrise = Math.abs(now - sunrise)/60000;
+  const minToSunset = Math.abs(now - sunset)/60000;
+  const isPrimeTime = minToSunrise <= 90 || minToSunset <= 90;
+
+  let score = 50;
+
+  // Pressure trend
+  if(delta <= -4) score += 10;
+  else if(delta <= -1) score += 20;
+  else if(delta >= 3) score -= 20;
+  else if(delta >= 1) score -= 5;
+  else score += 10;
+
+  // Wind
+  if(wind < 1) score -= 5;
+  else if(wind <= 4) score += 15;
+  else if(wind <= 7) score += 8;
+  else if(wind <= 10) score -= 5;
+  else score -= 20;
+
+  // Cloud cover
+  if(cloud < 20) score -= (isPrimeTime ? 0 : 5);
+  else if(cloud < 70) score += 10;
+  else score += 15;
+
+  // Temperature (air proxy for season/water)
+  if(temp >= 5 && temp <= 20) score += 5;
+  else if(temp < -5 || temp > 27) score -= 8;
+
+  // Moon
+  if(moon.minDays <= 1) score += 15;
+  else if(moon.minDays <= 3) score += 8;
+
+  // Time of day
+  if(isPrimeTime) score += 15;
+
+  score = Math.max(0, Math.min(100, score));
+
+  return {score, delta, wind, cloud, temp, moon, sunrise, sunset, isPrimeTime, pressureNow};
+}
+
+function renderStrip(info){
+  const trend = pressureTrendText(info.delta);
+  const compass = degToCompassFi(0); // placeholder overwritten below with real dir
+  const host = document.getElementById('stripHost');
+  host.innerHTML = `
+  <div class="strip">
+    <div class="card">
+      <div class="label">Ilmanpaine</div>
+      <div class="value">${info.pressureNow.toFixed(0)} <span style="font-size:14px;">hPa</span></div>
+      <div class="sub ${trend.cls}">${trend.text}</div>
+    </div>
+    <div class="card">
+      <div class="label">Tuuli</div>
+      <div class="value">${info.wind.toFixed(1)} <span style="font-size:14px;">m/s</span></div>
+      <div class="sub">Suunta: ${info.windCompass}</div>
+    </div>
+    <div class="card">
+      <div class="label">Pilvisyys</div>
+      <div class="value">${info.cloud.toFixed(0)}%</div>
+      <div class="sub">${info.cloud < 20 ? "Kirkas" : info.cloud < 70 ? "Puolipilvinen" : "Pilvinen"}</div>
+    </div>
+    <div class="card">
+      <div class="label">Lämpötila</div>
+      <div class="value">${info.temp.toFixed(1)}°C</div>
+      <div class="sub">Ilman lämpötila</div>
+    </div>
+    <div class="card">
+      <div class="label">Kuu</div>
+      <div class="value">${info.moon.icon}</div>
+      <div class="sub">${info.moon.name}</div>
+    </div>
+    <div class="card">
+      <div class="label">Vuorokaudenaika</div>
+      <div class="value" style="font-size:16px;">${info.isPrimeTime ? "Prime time" : "Peruskeli"}</div>
+      <div class="sub">Aur.nousu ${fmtTime(info.sunrise)} · Aur.lasku ${fmtTime(info.sunset)}</div>
+    </div>
+  </div>`;
+}
+
+function fmtTime(d){
+  return d.toLocaleTimeString('fi-FI', {hour:'2-digit', minute:'2-digit'});
+}
+
+function verdictSentence(info, score){
+  const parts = [];
+  if(info.delta <= -1) parts.push("laskeva ilmanpaine piristää syöntiä");
+  else if(info.delta >= 1) parts.push("nouseva paine voi hillitä syöntihaluja");
+  if(info.wind >= 1 && info.wind <= 7) parts.push("sopiva tuuli liikuttaa vettä");
+  if(info.cloud >= 20) parts.push("pilvisyys pehmentää valoa");
+  if(info.moon.minDays <= 3) parts.push(`kuu on lähellä ${info.moon.minDays === Math.min(info.moon.minDays) && info.moon.phase < 0.5 ? "uutta" : "täyttä"} vaihetta`);
+  if(info.isPrimeTime) parts.push("ajankohta osuu hämärän prime timeen");
+  if(parts.length === 0) return "Keli on tavanomainen — ei erityisiä piristeitä eikä haittoja näköpiirissä.";
+  return "Tänään " + parts.join(", ") + ".";
+}
+
+const LURES = {
+  hauki: {
+    clear: {name:"Iso vaappu, luonnonvärit", desc:"Hopea/sininen tai haukikuvioitu vaappu (15–20 cm) rantaviivan tuntumassa, hidas nykivä veto.", tag:"Kirkas vesi"},
+    murky: {name:"Räikeä blinkeri tai jigi", desc:"Oranssi, keltainen tai musta väri erottuu sameassa vedessä. Isompi jigipää tehostaa värähtelyä.", tag:"Sameampi vesi / pilvinen"},
+    cold: {name:"Hidas vetouistelu", desc:"Pieni-keskikokoinen vaappu, hyvin hidas nykytys — hauki ei jaksa kilometrin takaa-ajoja kylmässä vedessä.", tag:"Kylmä vesi"},
+  },
+  kuha: {
+    clear: {name:"Kevyt jigi, hopea/lasi", desc:"Ohut ranka, luonnollinen väri, jigaus pohjan tuntumassa hitaasti nykien.", tag:"Kirkas vesi"},
+    murky: {name:"Chartreuse-jigi", desc:"Kirkkaan keltavihreä väri (chartreuse) erottuu sameassa vedessä, kokeile myös rätinäolevaa jigipäätä.", tag:"Sameampi vesi / pilvinen"},
+    cold: {name:"Hidas pohjajigaus", desc:"Pieni jigipää, todella hidas kosketus pohjaan — kuha syö varovasti kylmässä vedessä.", tag:"Kylmä vesi"},
+  },
+  ahven: {
+    clear: {name:"Pieni twister, luonnonväri", desc:"Ahven- tai särkikuvioitu twisteri kevyellä jigipäällä, kalastus rantatörmien liepeillä.", tag:"Kirkas vesi"},
+    murky: {name:"Kirkas keltainen/oranssi lusikka", desc:"Pienikokoinen lusikkauistin räikeällä värillä, nopeahko veto herättää huomion.", tag:"Sameampi vesi / pilvinen"},
+    cold: {name:"Mikrojigi, hidas liike", desc:"Pieni jigipää ja nauhamainen liite, äärimmäisen hidas ja tauotettu veto.", tag:"Kylmä vesi"},
+  },
+  taimen: {
+    clear: {name:"Ohut lusikka tai vaappu", desc:"Hopeinen tai luonnonvärinen lusikkauistin virran poikki heitettynä, koukkaava veto.", tag:"Kirkas vesi"},
+    murky: {name:"Tumma/musta perhouistin", desc:"Isompi, tumma tai musta vaappu erottuu paremmin sameassa tai hämärässä vedessä.", tag:"Sameampi vesi / pilvinen"},
+    cold: {name:"Pieni, hidas veto koskissa", desc:"Pienempi vaappu, veto lähellä pohjaa hitaasti — taimen säästää energiaa kylmässä.", tag:"Kylmä vesi"},
+  },
+  särki: {
+    clear: {name:"Kevyt koho ja toukka", desc:"Pieni koukku, madot tai toukat syöttinä, kevyt kohokalastus rannan tuntumassa.", tag:"Kirkas vesi"},
+    murky: {name:"Vahva tuoksusyötti", desc:"Voimakastuoksuinen syötti (esim. leipä tai maissi) auttaa kalaa löytämään syötin sameassa vedessä.", tag:"Sameampi vesi / pilvinen"},
+    cold: {name:"Hidas pohjakalastus", desc:"Syötti pohjassa, pitkä odotus — särkikalat liikkuvat hitaasti kylmässä vedessä.", tag:"Kylmä vesi"},
+  }
+};
+
+function renderLures(species, info){
+  const grid = document.getElementById('lureGrid');
+  const set = LURES[species] || LURES.ahven;
+  const conditionKey = info.temp < 8 ? 'cold' : (info.cloud >= 40 ? 'murky' : 'clear');
+  const order = conditionKey === 'cold' ? ['cold','murky','clear'] : (conditionKey === 'murky' ? ['murky','cold','clear'] : ['clear','murky','cold']);
+  grid.innerHTML = order.map(key=>{
+    const l = set[key];
+    return `<div class="lure-card">
+      <span class="tag">${l.tag}</span>
+      <h3>${l.name}</h3>
+      <p>${l.desc}</p>
+    </div>`;
+  }).join('');
+}
+
+async function refresh(){
+  const loc = LOCATIONS[locSel.value];
+  const species = spSel.value;
+  document.getElementById('stripHost').innerHTML = '<div class="loading">Haetaan sää- ja kelitietoja…</div>';
+  document.getElementById('scoreLabel').textContent = 'Ladataan';
+  try{
+    const data = await fetchWeather(loc);
+    const idx = nearestHourIndex(data.hourly.time);
+    const info = computeScore(data, idx);
+    info.windCompass = degToCompassFi(data.hourly.wind_direction_10m[idx]);
+    setGauge(info.score);
+    document.getElementById('verdictText').textContent = verdictSentence(info, info.score);
+    renderStrip(info);
+    renderLures(species, info);
+    document.getElementById('updatedText').textContent =
+      `${loc.name} · päivitetty ${new Date().toLocaleTimeString('fi-FI',{hour:'2-digit',minute:'2-digit'})}`;
+  }catch(e){
+    document.getElementById('stripHost').innerHTML = `<div class="error">Sään haku epäonnistui. Tarkista verkkoyhteys ja yritä uudelleen.</div>`;
+    document.getElementById('scoreLabel').textContent = 'Virhe';
+  }
+}
+
+document.getElementById('refreshBtn').addEventListener('click', refresh);
+locSel.addEventListener('change', refresh);
+spSel.addEventListener('change', refresh);
+
+setGauge(0);
+refresh();
+</script>
+</body>
+</html>
