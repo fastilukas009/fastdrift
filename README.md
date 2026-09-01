@@ -32,6 +32,12 @@ asteen kulman ja vauhti romahtaa, kisarenkailla auto pysyy 4,5 asteessa ja
 kiihtyy 189 km/h:iin. Vaihto lyö kesken olevan sarjan lukkoon, joten
 kisarenkaille ei voi vaihtaa juuri ennen pisteiden korjaamista.
 
+**Los Angeles:** avoin kaupunki, jossa saa ajaa vapaasti. Ruutukaava
+palmubulevardeineen, korttelit rakennuksineen, suojatiet ja liikennevalot.
+Kadulla on 52 siviiliautoa, jotka ajavat omalla kaistallaan, pitävät etäisyyttä
+edellä ajavaan, pysähtyvät punaisiin ja väistävät pelaajaa. Ohilipaisu
+siviiliautosta antaa bonuspisteet - osuma vie sarjan.
+
 **Radat:** Satamalaituri (avoin harjoituskenttä), Teollisuusrata (aika-ajo),
 Vuoristolasku (kapea alamäki hämärässä) ja Talviratapiha (yö, lumi, puolet
 pidosta).
@@ -82,6 +88,22 @@ fysiikalla kuin itse peli.
 
 Peliohjain toimii suoraan (liipaisimet, olkanapit), samoin kosketusnäyttö.
 
+## Kaupunki ja liikenne
+
+Kadut ovat akselien suuntaisia, joten ajopinta lasketaan analyyttisesti eikä
+rasteroimalla ruudukkoon kuten kilparadoilla: kaupunki voi olla kilometrin
+levyinen ilman muistiongelmia, ja kitkan raja on tarkka pikselin sijaan metrin
+tarkkuudella.
+
+Siviiliauto kulkee aina jotakin polkua: joko suoraa kaistaa risteysten välissä
+tai Bezier-kaarta risteyksen läpi. Nopeuteen vaikuttaa neljä asiaa - nopeus-
+rajoitus, edellä ajava, risteyksen valo ja pelaajan auto. Mitattu 60 sekunnin
+ajolla 52 autolla: yksikään auto ei ajanut kadulta ulos, 96 % pysähtyi
+punaiseen (65 vs 3), ja päällekkäisyyksiä oli 0,06 % näytteistä.
+
+Koko liikenne piirtyy kahtena instansoituna kutsuna, joten autojen määrä ei
+kaada suorituskykyä.
+
 ## Grafiikka
 
 Renderöinti menee jälkikäsittelypinon läpi: `RenderPass` -> hehku -> sävykartoitus
@@ -112,6 +134,9 @@ drift/
     fx.js            savu, jarrutusjäljet, kipinät, sää
     audio.js         moottori- ja rengasäänet WebAudiolla
     input.js         näppäimistö, peliohjain, kosketus
+    city.js          avoin kaupunki: kaava, kadut, korttelit, rakennukset
+    traffic.js       siviililiikenteen tekoäly ja piirto
+    walls.js         seinien törmäys ja geometria
     postfx.js        hehku, värikorjaus, nopeussumennus
     ui.js            valikot, talli, asetukset
     save.js          tallennus localStorageen
@@ -120,7 +145,10 @@ drift/
 Edistyminen tallentuu vain selaimen localStorageen; mitään ei lähetetä
 palvelimelle.
 
-## Kesken
+## Ääni
 
-Avoin kaupunkimaailma liikenteineen on seuraava iso pala, eikä sitä ole vielä
-aloitettu.
+Moottori on ristikampi-V8. Sen tunnistaa kahdesta asiasta, ja molemmat on
+mallinnettu suoraan: puolikkaista kertaluvuista (0.5x ja 1.5x sytytys-
+taajuudesta) ja kierroskohtaisesta loikasta, joka syntyy kun pankit eivät syty
+tasavälein. Loikka on voimakkaimmillaan tyhjäkäynnillä ja häviää kierrosten
+noustessa. Pakoputken resonanssi 90-150 Hz:ssä antaa matalan möyryn.
