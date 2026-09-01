@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="fi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#0b0c10">
+<title>Fastidrift - driftipeli selaimessa</title>
+<meta name="description" content="Selaimessa pyörivä driftipeli: seitsemän autoa, neljä rataa, oikea rengasfysiikka, talli ja viritysosat. Ei latauksia, ei asennusta.">
+<link rel="icon" href="/favicon.ico">
+<link rel="stylesheet" href="./style.css">
+</head>
+<body>
+<div id="app">
+  <canvas id="scene"></canvas>
+
+  <!-- Ajonäkymän mittaristo -->
+  <div id="hud" class="hidden">
+    <div class="hud-top">
+      <div class="panel score-panel">
+        <div class="score-label">PISTEET</div>
+        <div class="score-total" id="scoreTotal">0</div>
+        <div class="score-pending" id="scorePending"></div>
+      </div>
+      <div class="panel combo-panel" id="comboPanel">
+        <div class="combo-mult" id="comboMult">x1.0</div>
+        <div class="combo-bar"><div class="combo-fill" id="comboFill"></div></div>
+        <div class="combo-angle" id="comboAngle">0&deg;</div>
+      </div>
+      <div class="panel timer-panel" id="timerPanel">
+        <div class="timer-label" id="timerLabel">AIKAA</div>
+        <div class="timer-value" id="timerValue">--</div>
+      </div>
+    </div>
+
+    <div id="angleMeter">
+      <div class="angle-track"><div class="angle-zone left"></div><div class="angle-zone right"></div></div>
+      <div class="angle-needle" id="angleNeedle"></div>
+    </div>
+
+    <div id="toasts"></div>
+
+    <div class="hud-bottom">
+      <button id="tireBadge" class="tire-badge drift">DRIFT</button>
+      <div class="gear-box"><span id="gearValue">1</span><small id="gearMode">AUTO</small></div>
+      <canvas id="gauges" width="420" height="210"></canvas>
+    </div>
+
+    <div id="progressWrap" class="hidden"><div id="progressFill"></div></div>
+    <div id="offTrack" class="hidden">PALAA RADALLE</div>
+    <div id="dangerVignette"></div>
+  </div>
+
+  <!-- Kosketusohjaimet -->
+  <div id="touch" class="hidden">
+    <div id="touchWheel"><span>&#8596;</span></div>
+    <div class="touch-right">
+      <button id="touchBrake" class="tbtn brake">JARRU</button>
+      <button id="touchHand" class="tbtn hand">KÄSI</button>
+      <button id="touchTire" class="tbtn tire">RENKAAT</button>
+      <button id="touchGas" class="tbtn gas">KAASU</button>
+    </div>
+  </div>
+
+  <!-- Valikot -->
+  <div id="menu">
+    <section class="screen active" id="screen-main">
+      <div class="brand">
+        <h1>FASTI<span>DRIFT</span></h1>
+        <p class="tagline">Rengasfysiikkaa, savua ja kulmia. Suoraan selaimessa.</p>
+      </div>
+      <nav class="main-nav">
+        <button class="big" data-go="tracks">AJA</button>
+        <button class="big" data-go="garage">TALLI</button>
+        <button class="big" data-go="settings">ASETUKSET</button>
+        <button class="big ghost" data-go="help">OHJEET</button>
+      </nav>
+      <div class="stat-strip" id="mainStats"></div>
+      <div class="menu-foot">
+        <span id="carLabel"></span>
+        <span class="money">&euro; <b id="moneyMain">0</b></span>
+      </div>
+    </section>
+
+    <section class="screen" id="screen-tracks">
+      <header class="screen-head">
+        <button class="back" data-go="main">&#8592;</button>
+        <h2>RADAT</h2>
+        <span class="money">&euro; <b class="moneyView">0</b></span>
+      </header>
+      <div class="track-list" id="trackList"></div>
+    </section>
+
+    <section class="screen" id="screen-garage">
+      <header class="screen-head">
+        <button class="back" data-go="main">&#8592;</button>
+        <h2>TALLI</h2>
+        <span class="money">&euro; <b class="moneyView">0</b></span>
+      </header>
+      <div class="garage">
+        <aside class="car-picker" id="carPicker"></aside>
+        <div class="garage-main">
+          <div class="garage-title">
+            <h3 id="garageCarName">-</h3>
+            <p id="garageCarBlurb"></p>
+          </div>
+          <div class="garage-tabs">
+            <button class="tab active" data-tab="stats">MITAT</button>
+            <button class="tab" data-tab="upgrades">OSAT</button>
+            <button class="tab" data-tab="tune">SÄÄDÖT</button>
+            <button class="tab" data-tab="paint">VÄRIT</button>
+          </div>
+          <div class="tab-body" id="tabStats"></div>
+          <div class="tab-body hidden" id="tabUpgrades"></div>
+          <div class="tab-body hidden" id="tabTune"></div>
+          <div class="tab-body hidden" id="tabPaint"></div>
+          <div class="garage-actions" id="garageActions"></div>
+        </div>
+        <div class="garage-stage"></div>
+      </div>
+    </section>
+
+    <section class="screen" id="screen-settings">
+      <header class="screen-head">
+        <button class="back" data-go="main">&#8592;</button>
+        <h2>ASETUKSET</h2>
+      </header>
+      <div class="settings" id="settingsBody"></div>
+    </section>
+
+    <section class="screen" id="screen-help">
+      <header class="screen-head">
+        <button class="back" data-go="main">&#8592;</button>
+        <h2>OHJEET</h2>
+      </header>
+      <div class="help">
+        <div class="help-cols">
+          <div>
+            <h3>Näppäimet</h3>
+            <ul class="keys">
+              <li><kbd>W</kbd> / <kbd>&#8593;</kbd><span>Kaasu</span></li>
+              <li><kbd>S</kbd> / <kbd>&#8595;</kbd><span>Jarru ja peruutus</span></li>
+              <li><kbd>A</kbd> <kbd>D</kbd><span>Ohjaus</span></li>
+              <li><kbd>Väli</kbd><span>Käsijarru</span></li>
+              <li><kbd>Shift</kbd><span>Kytkin (kytkinpotku)</span></li>
+              <li><kbd>Q</kbd> <kbd>E</kbd><span>Vaihteet manuaalilla</span></li>
+              <li><kbd>T</kbd><span>Renkaat: drift / kisapito</span></li>
+              <li><kbd>C</kbd><span>Kamera</span></li>
+              <li><kbd>R</kbd><span>Palauta radalle</span></li>
+              <li><kbd>Esc</kbd><span>Tauko</span></li>
+            </ul>
+            <p class="hint">Peliohjain toimii suoraan: liipaisimet kaasu ja jarru, A-nappi käsijarru, olkanapit vaihteet.</p>
+          </div>
+          <div>
+            <h3>Miten pisteitä kertyy</h3>
+            <ul class="bullets">
+              <li><b>Kulma kertaa nopeus.</b> Jyrkkä kulma kovassa vauhdissa tuottaa eniten.</li>
+              <li><b>Kerroin kasvaa</b> niin kauan kuin sarja jatkuu - enintään x10.</li>
+              <li><b>Suunnanvaihto</b> keskellä sarjaa antaa bonuksen ja nostaa kerrointa.</li>
+              <li><b>Keltaiset renkaat</b> radalla ovat klipsipisteitä. Aja niiden läpi driftissä.</li>
+              <li><b>Seinän vieressä</b> ajaminen kerryttää enemmän, mutta osuma vie kaiken.</li>
+              <li>Sarja lyödään lukkoon vasta kun oikaiset. Osuma tai spinni nollaa keräämättömät pisteet.</li>
+            </ul>
+          </div>
+        </div>
+        <div class="help-tips">
+          <h3>Kolme niksiä</h3>
+          <p><b>1.</b> Aloita kulma käsijarrulla tai painonsiirrolla: nykäise ratti ensin väärään suuntaan ja heti takaisin.</p>
+          <p><b>2.</b> Kaasu säätelee kulmaa, ratti pitää auton kasassa. Kulma kasvaa kaasulla, pienenee kaasua nostamalla.</p>
+          <p><b>3.</b> Katso kaarteen ulostuloon, älä nokan eteen. Vastaohjaus tulee refleksinä kun katse on oikeassa paikassa.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="screen" id="screen-pause">
+      <div class="pause-card">
+        <h2>TAUKO</h2>
+        <div class="pause-live" id="pauseLive"></div>
+        <button class="big" id="btnResume">JATKA</button>
+        <button class="big ghost" id="btnRestart">ALUSTA UUDELLEEN</button>
+        <button class="big ghost" id="btnQuit">LOPETA AJO</button>
+      </div>
+    </section>
+
+    <section class="screen" id="screen-results">
+      <div class="results-card">
+        <h2 id="resultTitle">AJO PÄÄTTYI</h2>
+        <div class="result-score" id="resultScore">0</div>
+        <div class="result-new hidden" id="resultRecord">UUSI ENNÄTYS</div>
+        <div class="result-grid" id="resultGrid"></div>
+        <div class="result-money">Ansaitsit <b id="resultMoney">0</b> &euro;</div>
+        <div class="result-actions">
+          <button class="big" id="btnAgain">AJA UUDELLEEN</button>
+          <button class="big ghost" id="btnToGarage">TALLIIN</button>
+          <button class="big ghost" id="btnToMenu">VALIKKOON</button>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <div id="countdown" class="hidden"><span id="countdownText">3</span></div>
+  <div id="loading"><div class="spinner"></div><span>Ladataan rataa...</span></div>
+</div>
+
+<script type="module" src="./js/main.js"></script>
+</body>
+</html>
