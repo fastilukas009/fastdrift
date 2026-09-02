@@ -1004,7 +1004,9 @@ export class Track {
   spawnPoint() {
     const def = this.def;
     if (def.spawn) return { x: def.spawn.x, z: def.spawn.z, yaw: def.spawn.yaw };
-    const p = this.centerline[0];
+    // Avoimella radalla lahto siirretaan hieman eteenpain: tasan ensimmaisessa
+    // pisteessa auto istuu puoliksi ajopinnan reunan yli.
+    const p = this.centerline[def.closed ? 0 : Math.min(4, this.centerline.length - 1)];
     return { x: p.x, z: p.z, yaw: Math.atan2(p.tx, p.tz) };
   }
 
