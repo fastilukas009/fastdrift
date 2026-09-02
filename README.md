@@ -34,9 +34,10 @@ kisarenkaille ei voi vaihtaa juuri ennen pisteiden korjaamista.
 
 **Los Angeles:** avoin kaupunki, jossa saa ajaa vapaasti. Ruutukaava
 palmubulevardeineen, korttelit rakennuksineen, suojatiet ja liikennevalot.
-Kadulla on 52 siviiliautoa, jotka ajavat omalla kaistallaan, pitävät etäisyyttä
-edellä ajavaan, pysähtyvät punaisiin ja väistävät pelaajaa. Ohilipaisu
-siviiliautosta antaa bonuspisteet - osuma vie sarjan.
+Kadulla on 64 siviiliautoa, jotka ajavat omalla kaistallaan, pitävät etäisyyttä
+edellä ajavaan, näyttävät vilkkua, pysähtyvät punaisiin ja väistävät pelaajaa,
+sekä 150 jalankulkijaa jotka kävelevät jalkakäytäviä ja pakenevat kun auto
+tulee päälle. Ohilipaisu siviiliautosta antaa bonuspisteet - osuma vie sarjan.
 
 **Radat:** Satamalaituri (avoin harjoituskenttä), Teollisuusrata (aika-ajo),
 Vuoristolasku (kapea alamäki hämärässä) ja Talviratapiha (yö, lumi, puolet
@@ -97,12 +98,25 @@ tarkkuudella.
 
 Siviiliauto kulkee aina jotakin polkua: joko suoraa kaistaa risteysten välissä
 tai Bezier-kaarta risteyksen läpi. Nopeuteen vaikuttaa neljä asiaa - nopeus-
-rajoitus, edellä ajava, risteyksen valo ja pelaajan auto. Mitattu 60 sekunnin
-ajolla 52 autolla: yksikään auto ei ajanut kadulta ulos, 96 % pysähtyi
-punaiseen (65 vs 3), ja päällekkäisyyksiä oli 0,06 % näytteistä.
+rajoitus, edellä ajava, risteyksen valo ja pelaajan auto.
 
-Koko liikenne piirtyy kahtena instansoituna kutsuna, joten autojen määrä ei
-kaada suorituskykyä.
+Etäisyydenpito noudattaa neliojuurilakia: tavoitenopeus on se, jolla auto ehtii
+vielä pysähtyä kiihtyvyydella 6 m/s^2 ennen kuin väli loppuu. Lineaarinen
+profiili näytti samalta mutta vaati kaukana enemmän jarrutusta kuin autolla oli
+käytettävissä, ja kaukana harvemmin päivittyvä auto ajoi edellä ajavan läpi.
+Lisäksi matkaa ei koskaan oteta enempää kuin väliä on jäljellä, joten läpiajo on
+mahdotonta myös nelinkertaisella aika-askeleella.
+
+Mitattu 90 sekunnin ajolla 64 autolla ja 150 kävelijällä: yksikään auto ei ajanut
+kadulta ulos, yksikään ei mennyt risteykseen punaisella (43 sisäänajoa, kaikki
+vihreällä), päällekkäisyyksiä oli 0,03 % näytteistä, eikä yksikään kävelijä
+päätynyt rakennuksen sisään tai ajoradalle. Koko tekoäly maksaa 0,50 ms
+ruudussa - kolme prosenttia 60 FPS:n budjetista.
+
+Kaikki agentit ovat kiinteä altaa, joka kierrätetään pelaajan ympärille: ajon
+aikana ei varata muistia, joten roskienkeruu ei nykäise. Autot kierrätetään 240
+metrin ja kävelijät 150 metrin säteellä - kävelijä kulkee 1,4 m/s eikä ehtisi
+koskaan takaisin kuvaan kauempaa. Piirto menee neljänä instansoituna kutsuna.
 
 ## Grafiikka
 
@@ -135,7 +149,7 @@ drift/
     audio.js         moottori- ja rengasäänet WebAudiolla
     input.js         näppäimistö, peliohjain, kosketus
     city.js          avoin kaupunki: kaava, kadut, korttelit, rakennukset
-    traffic.js       siviililiikenteen tekoäly ja piirto
+    latraffic.js     siviililiikenteen ja jalankulkijoiden tekoäly
     walls.js         seinien törmäys ja geometria
     postfx.js        hehku, värikorjaus, nopeussumennus
     ui.js            valikot, talli, asetukset

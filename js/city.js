@@ -6,7 +6,7 @@
 
 import * as THREE from '../vendor/three.module.min.js';
 import { WallSet } from './walls.js';
-import { Traffic } from './traffic.js';
+import { LATrafficAndPedestrianManager } from './latraffic.js';
 import { asphaltTexture, concreteTexture, buildingTexture, toTexture } from './textures.js';
 
 function rng(seed) {
@@ -86,7 +86,7 @@ export class City {
     this.rand = rng(20260901);
     this.layout();
     this.build();
-    this.traffic = new Traffic(this, def.traffic || 48);
+    this.traffic = new LATrafficAndPedestrianManager(this, { cars: def.traffic || 52, pedestrians: def.pedestrians || 90 });
     this.group.add(this.traffic.group);
     this.length = 0;
   }

@@ -27,7 +27,7 @@ export const TRACKS = [
     payout: 1.5,
     env: 'la',
     roadGrip: 1.0, offGrip: 0.55,
-    traffic: 52
+    traffic: 64, pedestrians: 150
   },
   {
     id: 'satama',
