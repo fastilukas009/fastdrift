@@ -464,6 +464,24 @@ class Game {
     if (this.ui && this.ui.screen === 'settings') this.ui.buildSettings();
   }
 
+  // Automaattinen laadunpudotus. Peli ei tieda etukateen mille raudalle se
+  // paatyy, joten se mittaa itse. Jos ruutunopeus jaa alle 45:n yhtajaksoisesti
+  // nelja sekuntia, laatu putoaa askeleen. Ylos ei nostella automaattisesti:
+  // se johtaisi edestakaiseen heilahteluun juuri rajan tuntumassa. Kun pelaaja
+  // valitsee laadun itse, automatiikka ei enaa puutu asiaan.
+  governQuality(dt) {
+    if (this.qualityLocked || this.mode !== 'driving') return;
+    const q = this.state.settings.quality;
+    if (q === 'low') return;
+    this.slowFor = this.fpsAvg < 45 ? (this.slowFor || 0) + dt : 0;
+    if (this.slowFor < 4) return;
+    this.slowFor = 0;
+    const next = q === 'high' ? 'medium' : 'low';
+    this.state.settings.quality = next;
+    this.applyQuality();
+    this.toast('GRAFIIKKA: ' + (next === 'medium' ? 'NORMAALI' : 'KEVYT'), 'bad');
+  }
+
   applyQuality() {
     const q = this.state.settings.quality;
     const dpr = window.devicePixelRatio || 1;
@@ -519,6 +537,7 @@ class Game {
     this.last = now;
     this.fpsAvg = this.fpsAvg ? this.fpsAvg * 0.92 + (1 / Math.max(dt, 0.001)) * 0.08 : 60;
     this.lastFps = Math.round(this.fpsAvg);
+    this.governQuality(dt);
     if (dt > 0.1) dt = 0.1;
     if (dt <= 0) return;
 

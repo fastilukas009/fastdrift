@@ -27,10 +27,27 @@ autotyyppiä, ei minkään valmistajan kopio. Jokaisella oma vääntökäyrä,
 välitykset, painojakauma ja ohjauskulma.
 
 **Renkaat:** kesken ajon voi vaihtaa driftirenkaiden ja kisarenkaiden välillä
-(`T`). Ero on mitattu: 35 % ohjausta ja täysi kaasu antaa driftirenkailla 89
-asteen kulman ja vauhti romahtaa, kisarenkailla auto pysyy 4,5 asteessa ja
-kiihtyy 189 km/h:iin. Vaihto lyö kesken olevan sarjan lukkoon, joten
-kisarenkaille ei voi vaihtaa juuri ennen pisteiden korjaamista.
+(`T`). Vaihto lyö kesken olevan sarjan lukkoon, joten kisarenkaille ei voi
+vaihtaa juuri ennen pisteiden korjaamista.
+
+Kisarenkaat eivät ole "enemmän kitkaa" vaan eri ajoneuvo. Pelkkä korkeampi
+kitkakerroin ei estä driftiä - riittävällä kaasulla ja käsijarrulla mikä tahansa
+rengas irtoaa - joten pidossa on kolme asiaa yhdessä: rengas ei menetä pitoaan
+kyllästyessään, taka pitää selvästi etua enemmän, ja päällä on elektroniikka
+joka leikkaa vääntöä, vaimentaa sivuluistoa ja estää myös käsijarrua
+lukitsemasta takarenkaita. Kolmas kohta on se joka oikeasti ratkaisee.
+
+Mitattu kolmella eri driftitavalla (kaasu ja ratti, käsijarru-aloitus,
+kytkinpotku) kahdella autolla:
+
+| | suurin kulma | aikaa yli 20 asteen | huippunopeus |
+| --- | --- | --- | --- |
+| DRIFT | 90° | 3,3 - 6,3 s | 37 - 62 km/h |
+| PITO | 4 - 7° | 0,0 s | 140 - 262 km/h |
+
+Driftirengas on entisen driftin ja entisen pidon puoliväli. PD-säädin
+("kokenut kuljettaja") pitää sillä 26 - 33 asteen kulmaa 15 - 17 sekuntia
+neljällä autolla viidestä ilman spinniä; ennen kulma oli 30 - 38 astetta.
 
 **Los Angeles:** avoin kaupunki, jossa saa ajaa vapaasti. Ruutukaava
 palmubulevardeineen, korttelit rakennuksineen, suojatiet ja liikennevalot.
@@ -38,6 +55,12 @@ Kadulla on 64 siviiliautoa, jotka ajavat omalla kaistallaan, pitävät etäisyyt
 edellä ajavaan, näyttävät vilkkua, pysähtyvät punaisiin ja väistävät pelaajaa,
 sekä 150 jalankulkijaa jotka kävelevät jalkakäytäviä ja pakenevat kun auto
 tulee päälle. Ohilipaisu siviiliautosta antaa bonuspisteet - osuma vie sarjan.
+
+**Lentokenttä ja moottoritie:** kaupungin länsipuolella on 800 metrin kiitorata
+rullausteineen, asematasoineen, halleineen ja terminaaleineen, ja etelässä
+kulkee kolmikaistainen moottoritie kaiteiden välissä. Kummallekin pääsee
+kaupungista katuja pitkin - lentokentälle tulotietä, moottoritielle rampin
+kautta. Siviililiikennettä näillä alueilla ei ole: ne ovat avointa tilaa.
 
 **Radat:** Satamalaituri (avoin harjoituskenttä), Teollisuusrata (aika-ajo),
 Vuoristolasku (kapea alamäki hämärässä) ja Talviratapiha (yö, lumi, puolet
@@ -68,9 +91,14 @@ kappaleen paikallinen +X osoittaa sen vasemmalle. Fysiikka on johdonmukainen
 tässä kehyksessä ja peilisymmetrinen, joten pelaajan ohjaus käännetään kerran
 `vehicle.js`:n `step()`-metodissa. Älä kumoa sitä käymättä koko kehystä läpi.
 
-Arvot on mitattu simuloimalla: Aurum S550 kiihtyy nollasta sataan 7,7 sekunnissa
-ja kulkee 284 km/h. Tallin lukemat eivät ole arvioita vaan ajetaan samalla
-fysiikalla kuin itse peli.
+Arvot on mitattu simuloimalla. Tallin lukemat eivät ole arvioita vaan ajetaan
+samalla fysiikalla kuin itse peli.
+
+Seinät testataan pakoyrityksillä: neljältä radalta 24 lähtöpistettä, viisi
+suuntaa, 45 m/s ja täysi kaasu kuuden sekunnin ajan. 480 yritystä, 0 karkuria.
+Ilman tätä testiä ei olisi löytynyt sitä, että tien reunaseinien sisäänpäin
+osoittava normaali osoitti ulos: törmäys työnsi auton radalta ulos seinän läpi,
+39 metrin päähän keskilinjasta.
 
 ## Ohjaus
 
@@ -150,6 +178,7 @@ drift/
     input.js         näppäimistö, peliohjain, kosketus
     city.js          avoin kaupunki: kaava, kadut, korttelit, rakennukset
     latraffic.js     siviililiikenteen ja jalankulkijoiden tekoäly
+    districts.js     lentokenttä ja moottoritie
     walls.js         seinien törmäys ja geometria
     postfx.js        hehku, värikorjaus, nopeussumennus
     ui.js            valikot, talli, asetukset
@@ -166,3 +195,18 @@ mallinnettu suoraan: puolikkaista kertaluvuista (0.5x ja 1.5x sytytys-
 taajuudesta) ja kierroskohtaisesta loikasta, joka syntyy kun pankit eivät syty
 tasavälein. Loikka on voimakkaimmillaan tyhjäkäynnillä ja häviää kierrosten
 noustessa. Pakoputken resonanssi 90-150 Hz:ssä antaa matalan möyryn.
+
+## Suorituskyky
+
+Peli ei tiedä etukäteen mille raudalle se päätyy, joten se mittaa itse. Jos
+ruudunpäivitys jää alle 45:n yhtäjaksoisesti neljäksi sekunniksi, grafiikka-
+asetus putoaa askeleen ja ruudulle tulee ilmoitus. Ylös ei nostella
+automaattisesti - se heiluisi edestakaisin juuri rajan tuntumassa - ja jos
+pelaaja valitsee laadun itse, automatiikka ei enää puutu asiaan.
+
+Asetus säätää kolmea asiaa: piirtotarkkuutta (pikselisuhteen katto 1 / 1,35 /
+2), varjokartan kokoa ja jälkikäsittelyä. Raskain niistä on piirtotarkkuus:
+tarkalla näytöllä pikselisuhde 2 tarkoittaa nelinkertaista pikselimäärää, ja
+sen päälle tulee vielä hehkuketju.
+
+Geometriaa on radoittain 12 000 - 88 000 kolmiota ja 96 - 146 piirtokutsua.

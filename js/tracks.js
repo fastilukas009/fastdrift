@@ -159,17 +159,21 @@ export class Track {
     const n = Math.max(64, Math.round(total / 2.5));
     const raw = curve.getSpacedPoints(n);
     const line = [];
+    const closed = !!def.closed;
     for (let i = 0; i < raw.length; i++) {
       const p = raw[i];
-      const prev = raw[(i - 1 + raw.length) % raw.length];
-      const next = raw[(i + 1) % raw.length];
+      // Avoimella radalla indeksia ei saa kietaista: muuten ensimmaisen pisteen
+      // tangentti laskettaisiin radan VIIMEISESTA pisteesta, jolloin lahtosuunta
+      // ja radan paatymuuri osoittavat sinne pain mista rata loppuu.
+      const prev = closed ? raw[(i - 1 + raw.length) % raw.length] : raw[Math.max(0, i - 1)];
+      const next = closed ? raw[(i + 1) % raw.length] : raw[Math.min(raw.length - 1, i + 1)];
       const tx = next.x - prev.x, tz = next.z - prev.z;
       const len = Math.hypot(tx, tz) || 1;
       line.push({
         x: p.x, y: p.y, z: p.z,
         tx: tx / len, tz: tz / len,
         rx: (tz / len), rz: -(tx / len),
-        t: i / (raw.length - (def.closed ? 0 : 1))
+        t: i / (raw.length - (closed ? 0 : 1))
       });
     }
     return line;
@@ -178,7 +182,10 @@ export class Track {
   buildGrid() {
     const def = this.def;
     let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
-    const pad = def.kind === 'lot' ? 20 : (def.width || 12) + 24;
+    // Makisella radalla ruudukolle annetaan reilusti tilaa: sen reuna nakyy
+    // maastossa suorana jyrkanteena, joten se pitaa tyontaa kauas tiesta.
+    const hilly = def.points ? def.points.some((p) => Math.abs(p[1]) > 2) : false;
+    const pad = def.kind === 'lot' ? 20 : (def.width || 12) + (hilly ? 90 : 24);
     if (def.kind === 'lot') {
       minX = def.lot.x - def.lot.w / 2 - pad; maxX = def.lot.x + def.lot.w / 2 + pad;
       minZ = def.lot.z - def.lot.h / 2 - pad; maxZ = def.lot.z + def.lot.h / 2 + pad;
@@ -237,10 +244,53 @@ export class Track {
         }
       }
     }
+    // Segmenttihaku kattoi vain kaistaleen tien ymparilta (reach). Sen ulkopuolella
+    // gDist jai arvoon 9999 ja gHeight nollaan, joten maasto putosi portaana nollaan
+    // ja vuoristoradalla auto tippui 64 metria tyhjaan. Chamfer-muunnos levittaa
+    // lahimman tiepisteen etaisyyden, korkeuden ja edistyman koko ruudukkoon
+    // kahdella pyyhkaisylla - O(n), ei O(segmentit x ruudut).
+    this.spreadGrid();
+
     // Radan ulkopuolella maasto laskee loivasti, jotta pientareelta ei aja tyhjään.
     for (let i = 0; i < n; i++) {
       const extra = Math.max(0, this.gDist[i] - halfW - 2);
       this.gHeight[i] -= Math.min(2.6, extra * 0.10);
+    }
+  }
+
+  // Kahden pyyhkaisyn chamfer-etaisyysmuunnos. Naapurin etaisyyteen lisataan
+  // askeleen pituus; jos summa on pienempi, myos korkeus ja edistyma peritaan
+  // samalta naapurilta. Diagonaalin paino on sqrt(2), joten tulos on riittavan
+  // lahella euklidista etta rinne on tasainen eika ruudukon suuntainen.
+  spreadGrid() {
+    const nx = this.nx, nz = this.nz;
+    const d = this.gDist, h = this.gHeight, g = this.gProg;
+    const S = CELL, D = CELL * Math.SQRT2;
+    const relax = (i, j, cost) => {
+      const v = d[j] + cost;
+      if (v < d[i]) { d[i] = v; h[i] = h[j]; g[i] = g[j]; }
+    };
+    for (let iz = 0; iz < nz; iz++) {
+      for (let ix = 0; ix < nx; ix++) {
+        const i = iz * nx + ix;
+        if (ix > 0) relax(i, i - 1, S);
+        if (iz > 0) {
+          relax(i, i - nx, S);
+          if (ix > 0) relax(i, i - nx - 1, D);
+          if (ix < nx - 1) relax(i, i - nx + 1, D);
+        }
+      }
+    }
+    for (let iz = nz - 1; iz >= 0; iz--) {
+      for (let ix = nx - 1; ix >= 0; ix--) {
+        const i = iz * nx + ix;
+        if (ix < nx - 1) relax(i, i + 1, S);
+        if (iz < nz - 1) {
+          relax(i, i + nx, S);
+          if (ix < nx - 1) relax(i, i + nx + 1, D);
+          if (ix > 0) relax(i, i + nx - 1, D);
+        }
+      }
     }
   }
 
@@ -315,10 +365,20 @@ export class Track {
 
     // Mäkisellä radalla maasto rakennetaan korkeusruudukosta, jotta tie ei jää leijumaan.
     // Ruudukon ulkopuolella rinne jatkaa laskuaan, ja sumu peittää reunan.
+    //
+    // Ruutukoko sidotaan fysiikan ruudukkoon (CELL * 1.5). Aiemmin tassa oli
+    // kiintea 96 x 96 ruutua 780 metrille eli 8 metria per verteksi, kun tie on
+    // 9,6 metria leveä: maasto ei mitenkaan voinut seurata tienpintaa, vaan
+    // tunkeutui sen lapi portaina. Se oli se "epamuodostunut rata".
     const tex = toTexture(groundTexture(kind), 60);
     mat.map = tex;
-    const seg = 96;
-    const span = 780;
+    // 4 metria per verteksi. Tarkempi ei kannata: maasto on joka tapauksessa
+    // 12 cm tienpinnan alapuolella eika voi tunkeutua sen lapi, joten lisatarkkuus
+    // menisi pelkkaan kolmiomaaraan. Ennen tama oli 8 metria, jolloin maasto ei
+    // pysynyt tien mukana lainkaan.
+    const step = CELL * 2;
+    const span = Math.max(this.nx, this.nz) * CELL + 260;
+    const seg = Math.min(220, Math.ceil(span / step));
     const geo = new THREE.PlaneGeometry(span, span, seg, seg);
     const pos = geo.attributes.position;
     const cxm = (this.minX + this.nx * CELL / 2), czm = (this.minZ + this.nz * CELL / 2);
@@ -340,10 +400,12 @@ export class Track {
   terrainHeight(x, z) {
     const s = this.sample(x, z);
     const edge = this.halfWidth + 3;
-    const drop = Math.min(11, Math.max(0, s.dist - edge) * 0.42);
+    // Maasto pidetaan aina vahintaan 12 cm tienpinnan alapuolella. Nain se ei
+    // voi tunkeutua ajopinnan lapi vaikka verteksi osuisi tien keskelle.
+    const drop = 0.12 + Math.min(30, Math.max(0, s.dist - edge) * 0.30);
     const outX = Math.max(0, Math.abs(x - (this.minX + this.nx * CELL / 2)) - this.nx * CELL / 2);
     const outZ = Math.max(0, Math.abs(z - (this.minZ + this.nz * CELL / 2)) - this.nz * CELL / 2);
-    return s.height - drop - Math.hypot(outX, outZ) * 0.45 - 0.06;
+    return s.height - drop - Math.hypot(outX, outZ) * 0.20 - 0.06;
   }
 
   buildLot() {
@@ -367,7 +429,9 @@ export class Track {
     ];
     for (let i = 0; i < 4; i++) {
       const a = c[i], b = c[(i + 1) % 4];
-      this.addWall(a[0], a[1], b[0], b[1], true);
+      // Sisaanpain = janan keskipisteesta kentan keskipisteeseen.
+      this.addWall(a[0], a[1], b[0], b[1],
+        x - (a[0] + b[0]) / 2, z - (a[1] + b[1]) / 2);
     }
     this.buildWallMesh(1.15, '#7d8087');
   }
@@ -497,9 +561,40 @@ export class Track {
         const az = a.z + a.rz * side * (halfW + gap);
         const bx = b.x + b.rx * side * (halfW + gap);
         const bz = b.z + b.rz * side * (halfW + gap);
-        this.addWall(ax, az, bx, bz, side < 0, a.y);
+        // Seina on kohdassa p + r*side*(halfW+gap), joten sisaanpain on -r*side.
+        this.addWall(ax, az, bx, bz, -a.rx * side, -a.rz * side, a.y);
       }
     }
+    // Avoimen radan paat suljetaan. Ilman tata sprinttiradalla ajaa suoraan
+    // tien lopusta ulos ja putoaa 64 metria alas tyhjaan.
+    //
+    // Pelkka poikittainen muuri ei riita: reunaseinat alkavat tasan radan
+    // ensimmaisesta pisteesta, ja lahtoruudusta suoraan sivulle ajava auto
+    // livahti muurin karjen ja reunaseinan alkupaan valista. Siksi reunaseinia
+    // jatketaan ensin taaksepain radan ulkopuolelle, ja vasta sitten tulee
+    // poikittainen muuri. Mitattu: 2 karkuria 120 pakoyrityksesta -> 0.
+    if (!closed) {
+      const capW = halfW + gap;
+      const back = 6;
+      const ends = [
+        { p: line[0], dir: -1 },
+        { p: line[count - 1], dir: 1 }
+      ];
+      for (const e of ends) {
+        const p = e.p;
+        const ex = p.x + p.tx * e.dir * back, ez = p.z + p.tz * e.dir * back;
+        for (let side = -1; side <= 1; side += 2) {
+          const off = halfW + gap;
+          this.addWall(
+            p.x + p.rx * side * off, p.z + p.rz * side * off,
+            ex + p.rx * side * off, ez + p.rz * side * off,
+            -p.rx * side, -p.rz * side, p.y);
+        }
+        this.addWall(ex - p.rx * capW, ez - p.rz * capW, ex + p.rx * capW, ez + p.rz * capW,
+          -p.tx * e.dir, -p.tz * e.dir, p.y);
+      }
+    }
+
     this.buildWallMesh(def.kind === 'touge' ? 0.85 : 1.25,
       def.kind === 'touge' ? '#c8ccd2' : (def.surface === 'snow' ? '#8f98a6' : '#83868d'));
 
@@ -530,13 +625,15 @@ export class Track {
     this.disposables.push(geo, mat, tex);
   }
 
-  addWall(ax, az, bx, bz, flip, y = 0) {
+  // Normaali annetaan suoraan, ei kaannettavana lippuna. Aiemmin taman
+  // paattelivat kutsujat itse, ja tien seinat saivat normaalin vaarinpain:
+  // tormäys työnsi auton radalta ULOS seinan lapi. Mitattu ennen korjausta:
+  // auto paatyi 39 metrin paahan keskilinjasta kun seina oli 10,9 metrissa.
+  addWall(ax, az, bx, bz, inX, inZ, y = 0) {
     const dx = bx - ax, dz = bz - az;
     const len = Math.hypot(dx, dz) || 1;
-    // Sisäänpäin osoittava normaali - tästä tiedetään kummalta puolelta auto tulee.
-    let nx = dz / len, nz = -dx / len;
-    if (flip) { nx = -nx; nz = -nz; }
-    this.walls.push({ ax, az, bx, bz, nx, nz, len, y });
+    const nl = Math.hypot(inX, inZ) || 1;
+    this.walls.push({ ax, az, bx, bz, nx: inX / nl, nz: inZ / nl, len, y });
   }
 
   buildWallMesh(height, color) {

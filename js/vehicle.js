@@ -24,12 +24,39 @@ function tireCurve(s, tail) {
   return tail + (1 - tail) * Math.exp(-(s - 1) * 0.85);
 }
 
-// Kaksi rengassarjaa. Driftirenkaissa taka on tarkoituksella pehmeämpi ja luistaa
-// ennustettavasti; kisarenkaissa taka pitää enemmän kuin etu, jolloin auto on vakaa
-// eikä yliohjaa - silloin ajetaan kierrosaikaa, ei kulmaa.
+// Kaksi rengassarjaa.
+//
+// DRIFT on vanhan driftin ja vanhan pidon puolivali: rengas luistaa yha, mutta
+// hallitummin kuin ennen. Kulman saa auki kaasulla eika auto putoa kasista heti.
+//
+// PITO ei ole "enemman pitoa" vaan eri ajoneuvo. Pelkka korkeampi kitka ei riita
+// estamaan driftia - riittavan kaasun ja kasijarrun kanssa mika tahansa rengas
+// irtoaa - joten pidossa on kolme asiaa yhdessa:
+//   1. tail lahes 1: rengas ei menta pitoaan kylläisenä, joten kulma ei jaa auki
+//   2. taka selvasti etua pitavampi: auto aliohjaa eika yliohjaa
+//   3. elektroniikka (tcs + esp), joka leikkaa vaannon ja vaimentaa sivuluiston
+// Kohta 3 on se joka tekee driftaamisesta oikeasti mahdotonta, ei kohdat 1-2.
 export const TIRE_SETS = {
-  drift: { name: 'DRIFT', front: 1.00, rear: 1.00, tail: 0.74, peakLat: 0.21 },
-  grip: { name: 'PITO', front: 1.10, rear: 1.22, tail: 0.88, peakLat: 0.17 }
+  drift: { name: 'DRIFT', front: 1.05, rear: 1.05, tail: 0.81, peakLat: 0.19 },
+  grip: {
+    name: 'PITO', front: 1.08, rear: 1.34, tail: 0.985, peakLat: 0.15,
+    tcs: 0.08,      // vetoluiston raja: yli taman vaanto leikkautuu
+    espSlip: 0.10,  // rad (~5,7 astetta) korin sivuluistoa ennen puuttumista
+    espYaw: 6.0,    // kulmaa vastustava momentti
+    // Kiertymisnopeuden suora vaimennus. Tama on se osa joka oikeasti pysayttaa
+    // spinnin: pelkka kulmaa vastustava momentti tuli mitattuna liian myohaan,
+    // ja auto ehti 82 asteeseen ennen kuin se palautui.
+    espDamp: 4.0,
+    // Kasijarru on ainoa tapa, jolla mitattu auto sai kisarenkailla kulmaa auki.
+    // Kisarenkailla se toimii kuin oikea seisontajarru: jarruttaa, muttei riita
+    // irrottamaan takaa. Ilman tata pitomoodissa sai 90 asteen liu'un.
+    handbrake: 0.34,
+    handbrakeMu: 1.0,
+    // Lukkiutumisenesto koskee kisarenkailla myos kasijarrua. Se on ainoa keino:
+    // lukkiutunut takapyora menettaa sivuttaispidon riippumatta siita kuinka
+    // pitava rengas on, koska kitkaympyra kaantyy kokonaan pitkittaissuuntaan.
+    absAlways: true
+  }
 };
 
 function clamp(v, a, b) { return v < a ? a : v > b ? b : v; }
@@ -184,6 +211,17 @@ export class Vehicle {
     const vLon = this.vx * sy + this.vz * cy;
     this.vLon = vLon;
 
+    // Ajonvakautus. Korin sivuluisto lasketaan tassa, jotta samaa lukua voidaan
+    // kayttaa seka vaannon leikkaukseen etta vaimentavaan momenttiin alempana.
+    let espOver = 0;
+    if (tires.espSlip !== undefined && speed > 3) {
+      espOver = Math.max(0, Math.abs(Math.atan2(vLat, Math.abs(vLon) + 0.5)) - tires.espSlip);
+      this.espActive = espOver > 0;
+    } else {
+      this.espActive = false;
+    }
+    this.espSign = Math.sign(vLat);
+
     // Peruutusvaihteella pedaalit vaihtavat roolia: jarru antaa kaasua taaksepäin.
     // Näin sama S-näppäin sekä jarruttaa että peruuttaa, kuten pelaajat odottavat.
     const rev = this.gear < 0;
@@ -255,6 +293,19 @@ export class Vehicle {
     let driveTorque = (engineTorque + kick) * ratio * 0.9 * (1 - this.clutch * 0.92);
     if (this.gear === 0) driveTorque = 0;
 
+    // Rengassarjan oma luistonesto: kisarenkailla se on paljon aggressiivisempi
+    // kuin auton oma tcs, ja se on paalla riippumatta auton varustelusta.
+    if (tires.tcs !== undefined && thr > 0.05) {
+      const kappa = Math.max(
+        Math.abs(this.wheels[WHEEL_RL].slipRatio),
+        Math.abs(this.wheels[WHEEL_RR].slipRatio)
+      );
+      if (kappa > tires.tcs) driveTorque *= clamp(1 - (kappa - tires.tcs) * 9, 0.05, 1);
+      // Kulman ollessa auki kaasu leikataan lisaa: ilman tata kasijarrusta
+      // aloitetun liu'un saa yllapidettya pelkalla kaasulla.
+      if (espOver > 0) driveTorque *= clamp(1 - espOver * 6, 0.05, 1);
+    }
+
     // Luistonesto leikkaa vääntöä jos takarenkaat karkaavat.
     if (spec.tcs && thr > 0.05 && !input.handbrake) {
       const kappa = Math.max(
@@ -274,7 +325,8 @@ export class Vehicle {
     let sumFx = 0, sumFz = 0, sumM = 0;
     const brakeF = spec.brakeTorque * spec.brakeBalance * brk;
     const brakeR = spec.brakeTorque * (1 - spec.brakeBalance) * brk;
-    const handbrake = input.handbrake ? spec.brakeTorque * 0.62 + 700 : 0;
+    const hbScale = tires.handbrake !== undefined ? tires.handbrake : 1;
+    const handbrake = input.handbrake ? (spec.brakeTorque * 0.62 + 700) * hbScale : 0;
 
     for (let i = 0; i < 4; i++) {
       const w = this.wheels[i];
@@ -308,7 +360,7 @@ export class Vehicle {
       const sn = Math.hypot(sxn, syn);
 
       const mu = (w.front ? spec.gripFront * tires.front : spec.gripRear * tires.rear) * w.grip
-        * (input.handbrake && !w.front ? 0.86 : 1)
+        * (input.handbrake && !w.front ? (tires.handbrakeMu !== undefined ? tires.handbrakeMu : 0.86) : 1)
         * (1 - this.damage * 0.12);
       // Kuormariippuvainen kitka: rengas menettää suhteellista pitoa kuorman kasvaessa.
       const loadFactor = 1.06 - 0.055 * (w.load / 3600);
@@ -330,7 +382,8 @@ export class Vehicle {
 
       let brake = w.front ? brakeF : brakeR;
       if (!w.front) brake += handbrake;
-      if (spec.abs && !input.handbrake && brake > 0 && Math.abs(slipLong) > 0.18) {
+      const absOn = tires.absAlways || (spec.abs && !input.handbrake);
+      if (absOn && brake > 0 && Math.abs(slipLong) > 0.18) {
         brake *= clamp(1 - (Math.abs(slipLong) - 0.18) * 3, 0.1, 1);
       }
       if (brake > 0) {
@@ -375,6 +428,13 @@ export class Vehicle {
 
     this.vx += (ax * cy + az * sy) * h;
     this.vz += (-ax * sy + az * cy) * h;
+
+    // Vakautuksen momentti: pyrkii kaantamaan auton takaisin kulkusuuntaan.
+    // Merkki on mitattu, ei paatelty - katso drift-testi scratchpadissa.
+    if (espOver > 0) {
+      sumM -= this.espSign * espOver * tires.espYaw * spec.mass * Math.max(6, speed);
+      sumM -= this.yawRate * tires.espDamp * spec.inertia;
+    }
 
     this.yawRate += sumM / spec.inertia * h;
     // Pieni vaimennus estää loputtoman pyörimisen paikallaan.

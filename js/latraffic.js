@@ -249,9 +249,11 @@ export class LATrafficAndPedestrianManager {
     for (const [i, j] of spots) {
       const px = c.xs[i], pz = c.zs[j];
       const hv = c.halfV(i), hh = c.halfH(j);
-      for (const [dx, dz, horiz] of [[1, 0, true], [0, 1, false]]) {
-        const x = px + dx * (hv + 1.4);
-        const z = pz + dz * (hh + 1.4);
+      // Pylvaat risteyksen kulmiin, ei kadun keskelle. Aiemmin vaakasuunnan
+      // opastin sai z:ksi risteyksen keskilinjan eli seisoi keskella poikkikatua.
+      for (const [sx, sz, horiz] of [[1, 1, true], [-1, -1, false]]) {
+        const x = px + sx * (hv + 1.4);
+        const z = pz + sz * (hh + 1.4);
         d.position.set(x, 2.6, z); d.rotation.set(0, 0, 0); d.scale.set(1, 1, 1);
         d.updateMatrix();
         poles.setMatrixAt(n, d.matrix);

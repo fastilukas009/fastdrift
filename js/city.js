@@ -7,7 +7,8 @@
 import * as THREE from '../vendor/three.module.min.js';
 import { WallSet } from './walls.js';
 import { LATrafficAndPedestrianManager } from './latraffic.js';
-import { asphaltTexture, concreteTexture, buildingTexture, toTexture } from './textures.js';
+import { Districts } from './districts.js';
+import { asphaltTexture, concreteTexture, groundTexture, buildingTexture, toTexture } from './textures.js';
 
 function rng(seed) {
   let s = seed >>> 0;
@@ -147,6 +148,13 @@ export class City {
   // -- pinta ---------------------------------------------------------------
 
   sample(x, z) {
+    // Lentokentta ja moottoritie eivat ole ruutukaavan katuja, joten ne
+    // vastaavat ensin. Laattojen ulkopuolella tulos on null ja jatketaan katuun.
+    if (this.districts) {
+      const d = this.districts.sample(x, z);
+      if (d && d.onRoad) return d;
+      var slab = d;
+    }
     const i = this.nearestIndex(this.xs, x);
     const j = this.nearestIndex(this.zs, z);
     const dx = Math.abs(x - this.xs[i]) - this.halfV(i);
@@ -159,11 +167,14 @@ export class City {
       // Jalkakäytävä: betonia, selvästi liukkaampi kuin asfaltti.
       grip = this.def.roadGrip * 0.72;
     } else grip = this.def.offGrip;
-    return {
+    const out = {
       grip, onRoad, height: 0,
       dist: Math.max(0, dEdge + this.halfWidth),
       slopeX: 0, slopeZ: 0, prog: 0
     };
+    // Laatan piennar voi olla lahempana kuin kadun: otetaan pienempi etaisyys,
+    // jotta kiitoradan vieressa ei kayntyisi "palaa radalle" -kello.
+    return (slab && slab.dist < out.dist) ? slab : out;
   }
 
   // Etäisyys lähimpään seinään; pisteytys palkitsee läheltä ajamisesta.
@@ -171,7 +182,13 @@ export class City {
 
   outOfBounds(x, z) {
     const m = 90;
-    return x < this.minX - m || x > this.maxX + m || z < this.minZ - m || z > this.maxZ + m;
+    let minX = this.minX, maxX = this.maxX, minZ = this.minZ, maxZ = this.maxZ;
+    if (this.districts) {
+      const b = this.districts.bounds;
+      minX = Math.min(minX, b.minX); maxX = Math.max(maxX, b.maxX);
+      minZ = Math.min(minZ, b.minZ); maxZ = Math.max(maxZ, b.maxZ);
+    }
+    return x < minX - m || x > maxX + m || z < minZ - m || z > maxZ + m;
   }
 
   clipProximity() { return null; }
@@ -184,6 +201,11 @@ export class City {
   }
 
   respawnNear(x, z) {
+    // Lentokentalla tai moottoritiella palautetaan sinne, ei kaupunkiin asti.
+    if (this.districts) {
+      const d = this.districts.respawn(x, z);
+      if (d) return d;
+    }
     const i = this.nearestIndex(this.xs, x);
     const j = this.nearestIndex(this.zs, z);
     const dx = Math.abs(x - this.xs[i]) - this.halfV(i);
@@ -200,12 +222,20 @@ export class City {
     this.buildRoads();
     this.buildBlocks();
     this.buildBuildings();
+    // Alueet ennen rekvisiittaa: buildProps kysyy onRoadway(), ja sen pitaa
+    // tietaa myos kiitoradasta ettei asematasolle kylveta palmuja.
+    this.districts = new Districts(this);
+    this.group.add(this.districts.group);
     this.buildProps();
     this.walls.index();
   }
 
   buildGround() {
-    const tex = toTexture(concreteTexture(9, '#6f7278'), 220);
+    // Pohja on kuivaa maata, ei betonia. Kaupungin sisalla se jaa kokonaan
+    // kortteleiden ja katujen alle; nakyviin se tulee vasta lentokentan ja
+    // moottoritien ymparilla, ja siella harmaa betonilaatoitus nayttaisi
+    // silta kuin koko LA olisi rakennettu parkkihallin katolle.
+    const tex = toTexture(groundTexture('dirt'), 260);
     const geo = new THREE.PlaneGeometry(2600, 2600);
     const mat = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.95, metalness: 0 });
     const m = new THREE.Mesh(geo, mat);
@@ -443,6 +473,22 @@ export class City {
     this.disposables.push(geo);
   }
 
+  /**
+   * Onko piste ajoradalla (kaikki kadut, ei jalkakaytava). Rekvisiitan sijoitus
+   * kysyy tata: ilman sita bulevardin varteen kylvetty palmurivi jatkoi suoraan
+   * jokaisen poikkikadun yli ja puita jai keskelle ajorataa.
+   */
+  onRoadway(x, z, margin = 0) {
+    if (this.districts && this.districts.onSlab(x, z, margin)) return true;
+    for (let i = 0; i < this.xs.length; i++) {
+      if (Math.abs(x - this.xs[i]) < this.halfV(i) + margin) return true;
+    }
+    for (let j = 0; j < this.zs.length; j++) {
+      if (Math.abs(z - this.zs[j]) < this.halfH(j) + margin) return true;
+    }
+    return false;
+  }
+
   buildProps() {
     const rand = this.rand;
     // Palmut boulevardien varsille - ilman niitä tämä ei ole Los Angeles.
@@ -465,6 +511,11 @@ export class City {
         for (const s of [-1, 1]) spots.push([x + rand() * 8, this.zs[j] + s * (this.halfH(j) + 2.0)]);
       }
     }
+    // Vain jalkakaytavalle jaavat paikat kelpaavat.
+    const clear = spots.filter(([x, z]) => !this.onRoadway(x, z, 1.2));
+    spots.length = 0;
+    for (const p of clear) spots.push(p);
+
     const n = Math.min(spots.length, 420);
     const trunks = new THREE.InstancedMesh(trunkGeo, trunkMat, n);
     const fronds = new THREE.InstancedMesh(frondGeo, frondMat, n * 5);
@@ -510,6 +561,7 @@ export class City {
   trafficDistance(x, z) { return this.traffic.nearestDistance(x, z); }
 
   dispose() {
+    if (this.districts) this.districts.dispose();
     this.traffic.dispose();
     for (const d of this.disposables) if (d && d.dispose) d.dispose();
     this.group.clear();

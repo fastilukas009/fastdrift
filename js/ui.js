@@ -524,7 +524,11 @@ export class UI {
     seg('setSound', 'sound', (v) => v === '1', (v) => this.game.audio.setEnabled(v));
     seg('setGear', 'autoGear', (v) => v === '1');
     seg('setCam', 'camera', (v) => v, (v) => this.game.setCamera(v));
-    seg('setQual', 'quality', (v) => v, () => this.game.applyQuality());
+    // Kasin valittu laatu lukitsee automaattisen laadunpudotuksen.
+    seg('setQual', 'quality', (v) => v, () => {
+      this.game.qualityLocked = true;
+      this.game.applyQuality();
+    });
     seg('setShadow', 'shadows', (v) => v === '1', () => this.game.applyQuality());
 
     document.getElementById('setReset').addEventListener('click', () => {
