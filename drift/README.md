@@ -111,6 +111,7 @@ osoittava normaali osoitti ulos: törmäys työnsi auton radalta ulos seinän l�
 | `Shift` | Kytkin |
 | `Q` `E` | Vaihteet manuaalilla |
 | `T` | Renkaat: drift / kisapito |
+| `M` | Kartta: lähikuva / koko kartta |
 | `C` | Kamera |
 | `R` | Palauta radalle |
 | `Esc` | Tauko |
@@ -145,6 +146,23 @@ Kaikki agentit ovat kiinteä altaa, joka kierrätetään pelaajan ympärille: aj
 aikana ei varata muistia, joten roskienkeruu ei nykäise. Autot kierrätetään 240
 metrin ja kävelijät 150 metrin säteellä - kävelijä kulkee 1,4 m/s eikä ehtisi
 koskaan takaisin kuvaan kauempaa. Piirto menee neljänä instansoituna kutsuna.
+
+## Minikartta
+
+Vasemmassa alakulmassa on kartta, jossa näkyvät kadut, korttelit, lentokenttä,
+moottoritie ja lähin siviililiikenne. `M` avaa koko kaupungin kartan.
+
+Kartta on pohjoinen ylöspäin, ei ajosuunta ylöspäin. Ruutukaavassa se on ainoa
+järkevä valinta: kääntyvä kartta tekee suorakulmaisesta verkosta vinon eikä
+kortteleita tunnista enää mistään. Pelaajan nuoli kääntyy, kartta ei.
+
+Kilparadalla kartta näyttää koko radan kerralla - kierrosajossa se on
+hyödyllisempi kuin 260 metrin ikkuna. Kaupunki on kilometrin levyinen, joten se
+katsotaan aina läheltä.
+
+Tausta ei muutu ajon aikana, joten se piirretään kerran radan vaihtuessa isolle
+kankaalle. Ruutukohtainen työ on yksi `drawImage` ja kourallinen pisteitä, ei
+satojen katujen uudelleenpiirto.
 
 ## Grafiikka
 
@@ -181,6 +199,7 @@ drift/
     districts.js     lentokenttä ja moottoritie
     walls.js         seinien törmäys ja geometria
     postfx.js        hehku, värikorjaus, nopeussumennus
+    minimap.js       minikartta
     ui.js            valikot, talli, asetukset
     save.js          tallennus localStorageen
 ```

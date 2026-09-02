@@ -8,6 +8,7 @@ import { DriftScorer } from './scoring.js';
 import { Effects } from './fx.js';
 import { buildCar, syncCarModel } from './carmodel.js';
 import { Input } from './input.js';
+import { Minimap } from './minimap.js';
 import { GameAudio } from './audio.js';
 import { UI } from './ui.js';
 import { PostFX } from './postfx.js';
@@ -186,6 +187,7 @@ class Game {
     this.input.on('shiftUp', () => { if (this.vehicle && !this.state.settings.autoGear) this.vehicle.shiftUp(); });
     this.input.on('shiftDown', () => { if (this.vehicle && !this.state.settings.autoGear) this.vehicle.shiftDown(); });
     this.input.on('tire', () => this.toggleTires());
+    this.input.on('map', () => this.toggleMap());
     this.input.on('hud', () => {
       this.state.settings.showHud = !this.state.settings.showHud;
       document.getElementById('hud').style.opacity = this.state.settings.showHud ? '1' : '0';
@@ -329,6 +331,9 @@ class Game {
 
     this.track = createTrack(def);
     scene.add(this.track.group);
+    // Minikartan tausta rakennetaan kerran radan vaihtuessa.
+    if (!this.minimap) this.minimap = new Minimap(document.getElementById('minimap'));
+    this.minimap.setTrack(this.track);
 
     this.effects = new Effects(scene, this.state.settings.quality);
     if (def.surface === 'snow') this.effects.enableWeather('snow');
@@ -482,6 +487,12 @@ class Game {
     this.toast('GRAFIIKKA: ' + (next === 'medium' ? 'NORMAALI' : 'KEVYT'), 'bad');
   }
 
+  toggleMap() {
+    if (!this.minimap) return;
+    const el = document.getElementById('minimap');
+    if (el) el.classList.toggle('full', this.minimap.toggle());
+  }
+
   applyQuality() {
     const q = this.state.settings.quality;
     const dpr = window.devicePixelRatio || 1;
@@ -561,6 +572,13 @@ class Game {
       this.updateDriving(dt, false);
     } else if (this.view === 'showroom') {
       this.updateShowroom(dt);
+    }
+
+    if (this.minimap) {
+      const el = this.minimap.canvas;
+      const on = this.view === 'track' && this.mode !== 'menu' && this.state.settings.showHud;
+      el.classList.toggle('hidden', !on);
+      if (on) this.minimap.draw(this.vehicle, this.track);
     }
 
     const scene = this.view === 'showroom' ? this.showroom.scene : (this.world && this.world.scene);
