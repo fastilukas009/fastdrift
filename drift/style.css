@@ -110,6 +110,12 @@ button {
   display: flex; justify-content: space-between; align-items: center;
   margin-top: 14px; color: var(--muted); font-size: 13px;
 }
+/* Julkaistun version tunniste: kertoo yhdella vilkaisulla mika build on
+   ladattu, kun selain tarjoilee valimuistista vanhaa. */
+.build {
+  font-family: var(--mono); font-size: 11px; letter-spacing: 0.12em;
+  color: var(--muted); opacity: 0.55;
+}
 .money { font-family: var(--mono); color: var(--mint); letter-spacing: 0.04em; }
 .money b { font-size: 17px; }
 
