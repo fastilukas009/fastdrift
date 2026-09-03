@@ -37,7 +37,12 @@ function tireCurve(s, tail) {
 //   3. elektroniikka (tcs + esp), joka leikkaa vaannon ja vaimentaa sivuluiston
 // Kohta 3 on se joka tekee driftaamisesta oikeasti mahdotonta, ei kohdat 1-2.
 export const TIRE_SETS = {
-  drift: { name: 'DRIFT', front: 1.05, rear: 1.05, tail: 0.81, peakLat: 0.19 },
+  // Taka hieman etua pehmeampi. Mitattuna tama tuplaa huonoimman auton
+  // kulmanpitoajan (1,0 s -> 2,2 s): auto lahtee kiertymaan ennustettavasti
+  // eika nappaa takaisin suoraan kesken liu'un. Muut rengaskayran parametrit
+  // mitattiin lapi 30 yhdistelman pyyhkaisylla eivatka ne liikuttaneet
+  // keskikulmaa kuin asteen tai kaksi - siksi ne jaavat ennalleen.
+  drift: { name: 'DRIFT', front: 1.05, rear: 1.008, tail: 0.81, peakLat: 0.19 },
   grip: {
     name: 'PITO', front: 1.08, rear: 1.34, tail: 0.985, peakLat: 0.15,
     tcs: 0.08,      // vetoluiston raja: yli taman vaanto leikkautuu

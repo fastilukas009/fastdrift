@@ -187,4 +187,55 @@ export function sparkTexture() {
   return tex;
 }
 
+// Tienviitta. Vihrea pohja ja valkoinen reunus kuin moottoritien opasteessa;
+// nuoli piirretaan koodilla, jotta suunnan voi antaa parametrina eika kuvaa
+// tarvitse tehda erikseen jokaiseen ilmansuuntaan.
+//
+// Kuvasuhde on 2:1 ja se venytetaan taululle sellaisenaan, joten teksti pysyy
+// oikeassa mittasuhteessa fyysisen taulun kanssa.
+export function signTexture(text, dir = 'up', sub = '') {
+  const w = 512, h = 256;
+  const c = document.createElement('canvas');
+  c.width = w; c.height = h;
+  const x = c.getContext('2d');
+
+  x.fillStyle = '#0e5c33';
+  x.fillRect(0, 0, w, h);
+  x.strokeStyle = '#f2f4f6';
+  x.lineWidth = 8;
+  x.strokeRect(14, 14, w - 28, h - 28);
+
+  x.fillStyle = '#f2f4f6';
+  x.textAlign = 'center';
+  x.textBaseline = 'middle';
+  x.font = '700 62px system-ui, sans-serif';
+  x.fillText(text, w * 0.54, sub ? h * 0.40 : h * 0.42);
+  if (sub) {
+    x.font = '600 34px system-ui, sans-serif';
+    x.fillText(sub, w * 0.54, h * 0.63);
+  }
+
+  // Nuoli: varsi ja karki. Kierretaan taulun keskipisteen ympari suunnan mukaan.
+  const ax = 92, ay = h * 0.5, len = 44, head = 26;
+  const rot = { up: -Math.PI / 2, down: Math.PI / 2, left: Math.PI, right: 0 }[dir] || 0;
+  x.save();
+  x.translate(ax, ay);
+  x.rotate(rot);
+  x.strokeStyle = '#f2f4f6';
+  x.lineWidth = 16;
+  x.lineCap = 'round';
+  x.beginPath();
+  x.moveTo(-len, 0); x.lineTo(len * 0.35, 0);
+  x.stroke();
+  x.beginPath();
+  x.moveTo(len, 0);
+  x.lineTo(len - head, -head * 0.8);
+  x.lineTo(len - head, head * 0.8);
+  x.closePath();
+  x.fill();
+  x.restore();
+
+  return c;
+}
+
 export { finish as toTexture };

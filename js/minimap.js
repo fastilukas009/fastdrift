@@ -239,10 +239,21 @@ export class Minimap {
       const rw = track.districts.slabs.find((q) => q.kind === 'runway');
       const mw = track.districts.slabs.find((q) => q.kind === 'motorway');
       if (rw) c.fillText('LENTOKENTTÄ', toX((rw.x0 + rw.x1) / 2), toZ(rw.z0) - 10);
-      if (mw) c.fillText('MOOTTORITIE', toX(0), toZ(mw.z1) + 20);
       // Keskustan nimi ruudukon ylareunaan, ei keskelle: siella se jaisi
       // pelaajan nuolen alle juuri silloin kun pelaaja on keskustassa.
-      c.fillText('KESKUSTA', toX(0), toZ(track.minZ) - 6);
+      let keskustaY = toZ(track.minZ) - 6;
+      if (mw) {
+        const mwY = toZ(mw.z1) + 20;
+        c.fillText('MOOTTORITIE', toX(0), mwY);
+        // Moottoritie kulkee heti ruudukon ylapuolella, joten sen nimi ja
+        // KESKUSTA osuvat samaan kohtaan. Kumpikin on kiinnitetty omaan
+        // kohteeseensa, joten niita ei voi vain siirtaa - alempi tyonnetaan
+        // ruudukon sisaan sen verran etta rivit erottuvat.
+        // 26 px eli reilut kaksi rivikorkeutta 12 px:n fontilla; 16 px jatti
+        // rivit kiinni toisissaan.
+        if (Math.abs(keskustaY - mwY) < 26) keskustaY = mwY + 26;
+      }
+      c.fillText('KESKUSTA', toX(0), keskustaY);
     }
 
     c.restore();

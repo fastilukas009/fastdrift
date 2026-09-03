@@ -26,6 +26,78 @@ function distortionCurve(amount) {
   return curve;
 }
 
+// Moottorin luonne. Sytytystaajuus on kierrokset kertaa sylinterit/2 (nelitahti
+// sytyttaa joka toisella kierroksella), ja layout ratkaisee mita sen ymparille
+// kuullaan:
+//
+//   puolikkaat kertaluvut (0.5x, 1.5x) = ristikampi-V8:n epatasainen sytytysvali,
+//   se murina jonka jokainen tunnistaa amerikkalaisesta V8:sta. Tasakampinen
+//   moottori ei tuota niita lainkaan, vaan kirkkaan ulvonnan.
+//
+//   lope = kierroskohtainen amplitudimodulaatio. Syva ristikampi-V8:lla,
+//   olematon tasavalisilla moottoreilla.
+//
+//   cut = alipaastosuotimen lisavara. Korkeakierroksinen moottori tarvitsee
+//   enemman ylapaata tai se kuulostaa tukahdutetulta.
+const ENGINE_VOICES = {
+  // Ristikampi-V8: puolikkaat kertaluvut ja syva loikka.
+  v8cross: {
+    lope: 1.0, cut: 0,
+    harmonics: [
+      { mul: 0.5, gain: 0.50, detune: -5 },
+      { mul: 1.0, gain: 0.42, detune: 4 },
+      { mul: 1.5, gain: 0.20, detune: -9 },
+      { mul: 2.0, gain: 0.16, detune: 7 },
+      { mul: 3.0, gain: 0.07, detune: -3 }
+    ]
+  },
+  // Tasakampinen V8: ei puolikkaita, painopiste perustaajuudessa - kilpa-auton ulvonta.
+  v8flat: {
+    lope: 0.15, cut: 900,
+    harmonics: [
+      { mul: 1.0, gain: 0.52, detune: 3 },
+      { mul: 2.0, gain: 0.26, detune: -6 },
+      { mul: 3.0, gain: 0.14, detune: 5 },
+      { mul: 4.0, gain: 0.07, detune: -4 }
+    ]
+  },
+  // Boksterikuutonen: tasavalinen sytytys, mutta vastakkaiset pankit antavat
+  // ominaisen karhean keskialueen.
+  flat6: {
+    lope: 0.25, cut: 700,
+    harmonics: [
+      { mul: 1.0, gain: 0.46, detune: 4 },
+      { mul: 1.5, gain: 0.10, detune: -7 },
+      { mul: 2.0, gain: 0.28, detune: -5 },
+      { mul: 3.0, gain: 0.16, detune: 6 },
+      { mul: 4.5, gain: 0.06, detune: -2 }
+    ]
+  },
+  // V10: korkea sytytystaajuus ja runsas ylapaa - kirkuna, ei murina.
+  v10: {
+    lope: 0.0, cut: 2600,
+    harmonics: [
+      { mul: 1.0, gain: 0.44, detune: 2 },
+      { mul: 2.0, gain: 0.30, detune: -5 },
+      { mul: 2.5, gain: 0.12, detune: 8 },
+      { mul: 3.0, gain: 0.20, detune: -3 },
+      { mul: 4.0, gain: 0.11, detune: 6 }
+    ]
+  },
+  // W16: sytytyksia niin tiheästi ettei yksittaista pamausta erota - matala,
+  // yhtenainen mylvinta jonka paalla neljan ahtimen imu.
+  w16: {
+    lope: 0.35, cut: -150,
+    harmonics: [
+      { mul: 0.5, gain: 0.30, detune: -6 },
+      { mul: 1.0, gain: 0.50, detune: 3 },
+      { mul: 2.0, gain: 0.20, detune: -8 },
+      { mul: 3.0, gain: 0.08, detune: 5 }
+    ]
+  }
+};
+const VOICE_SLOTS = 5;
+
 export class GameAudio {
   constructor() {
     this.ready = false;
@@ -69,25 +141,23 @@ export class GameAudio {
     this.engineFilter.connect(this.exhaust);
     this.exhaust.connect(this.master);
 
+    // Kiintea maara oskillaattoreita, joiden kertaluku ja voimakkuus vaihdetaan
+    // auton mukana. Uusien luonti lennossa nakisi klikkina.
     this.oscs = [];
-    const harmonics = [
-      { mul: 0.5, gain: 0.50, type: 'sawtooth', detune: -5 },
-      { mul: 1.0, gain: 0.42, type: 'sawtooth', detune: 4 },
-      { mul: 1.5, gain: 0.20, type: 'sawtooth', detune: -9 },
-      { mul: 2.0, gain: 0.16, type: 'sawtooth', detune: 7 },
-      { mul: 3.0, gain: 0.07, type: 'sawtooth', detune: -3 }
-    ];
-    for (const h of harmonics) {
+    for (let i = 0; i < VOICE_SLOTS; i++) {
       const o = ctx.createOscillator();
-      o.type = h.type;
-      o.detune.value = h.detune;
+      o.type = 'sawtooth';
       const g = ctx.createGain();
-      g.gain.value = h.gain;
+      g.gain.value = 0;
       o.connect(g);
       g.connect(this.engineBus);
       o.start();
-      this.oscs.push({ osc: o, mul: h.mul, gain: g, base: h.gain });
+      this.oscs.push({ osc: o, mul: 1, gain: g, base: 0 });
     }
+    this.voiceLayout = null;
+    this.voiceCut = 0;
+    this.voiceLope = 1;
+    this.setVoice('v8cross');
 
     // Kierroskohtainen amplitudimodulaatio = V8:n loikka. Taajuus on kierrosluku
     // sekunneissa, ei sytytystaajuus, joten sykettä kuulee yksi per kierros.
@@ -161,6 +231,25 @@ export class GameAudio {
     this.ready = true;
   }
 
+  // Vaihtaa moottorin luonteen. Kaytossa olemattomat kertaluvut vaimennetaan
+  // nollaan sen sijaan etta oskillaattori pysaytettaisiin - pysaytettya ei voi
+  // kayttaa uudelleen.
+  setVoice(layout) {
+    if (!this.oscs || this.voiceLayout === layout) return;
+    const v = ENGINE_VOICES[layout] || ENGINE_VOICES.v8cross;
+    this.voiceLayout = layout;
+    this.voiceCut = v.cut;
+    this.voiceLope = v.lope;
+    for (let i = 0; i < this.oscs.length; i++) {
+      const h = v.harmonics[i];
+      const slot = this.oscs[i];
+      slot.mul = h ? h.mul : 1;
+      slot.base = h ? h.gain : 0;
+      if (h) slot.osc.detune.setTargetAtTime(h.detune, this.ctx.currentTime, 0.02);
+      slot.gain.gain.setTargetAtTime(slot.base, this.ctx.currentTime, 0.05);
+    }
+  }
+
   resume() {
     if (this.ctx && this.ctx.state === 'suspended') this.ctx.resume();
   }
@@ -214,7 +303,12 @@ export class GameAudio {
     this.burst({ duration: 0.16, freq: 170, q: 0.9, gain: 0.6, sweep: 0.28 });
     this.burst({ duration: 0.07, freq: 1900, q: 0.6, gain: 0.14, type: 'highpass' });
   }
-  blowoff() { this.burst({ duration: 0.22, freq: 3400, q: 1.4, gain: 0.16, type: 'highpass', sweep: 1.8 }); }
+  blowoff(strength = 1) {
+    const k = Math.max(0.2, Math.min(1, strength));
+    this.burst({ duration: 0.16 + k * 0.14, freq: 3400, q: 1.4, gain: 0.09 + k * 0.13, type: 'highpass', sweep: 1.8 });
+    // Matala "puh" venttiilin auetessa - pelkka ylapaan sihina kuulostaa ohuelta.
+    this.burst({ duration: 0.1 + k * 0.08, freq: 620, q: 1.0, gain: 0.05 + k * 0.07, sweep: 0.5 });
+  }
   crash(force) {
     const g = Math.min(0.8, 0.12 + force * 0.07);
     this.burst({ duration: 0.3, freq: 180, q: 0.6, gain: g, type: 'lowpass', sweep: 0.35 });
@@ -233,11 +327,21 @@ export class GameAudio {
     const rpm = vehicle.rpm;
     const throttle = opts.throttle || 0;
 
-    // Kaikissa autoissa V8: kahdeksan sylinteriä, neljä sytytystä kierrosta kohti.
+    // Moottorin luonne auton mukaan. Nelitahti sytyttaa joka toisella
+    // kierroksella, joten sytytystaajuus on kierrosnopeus kertaa sylinterit/2.
+    const eng = spec.engine || { cylinders: 8, layout: 'v8cross' };
+    this.setVoice(eng.layout);
     const rev = rpm / 60;
-    const f0 = Math.max(24, rev * 4);
+    const f0 = Math.max(24, rev * eng.cylinders * 0.5);
     for (const o of this.oscs) {
-      o.osc.frequency.setTargetAtTime(f0 * o.mul, now, 0.018);
+      if (o.base <= 0) continue;
+      // Nyquistin yli menevä kertaluku vaimennetaan: muuten se laskostuu takaisin
+      // kuuluvalle alueelle vieraana sivusävelenä.
+      const f = f0 * o.mul;
+      const nyq = ctx.sampleRate * 0.5;
+      o.osc.frequency.setTargetAtTime(Math.min(f, nyq * 0.9), now, 0.018);
+      if (f > nyq * 0.55) o.gain.gain.setTargetAtTime(o.base * Math.max(0, 1 - (f / nyq - 0.55) * 3), now, 0.05);
+      else o.gain.gain.setTargetAtTime(o.base, now, 0.05);
     }
 
     const load = 0.30 + throttle * 0.70;
@@ -247,19 +351,41 @@ export class GameAudio {
 
     // Loikka kuuluu voimakkaimmin tyhjäkäynnillä ja häviää kierrosten noustessa.
     this.lope.frequency.setTargetAtTime(Math.max(6, rev), now, 0.03);
-    this.lopeDepth.gain.setTargetAtTime(target * (0.42 - revShare * 0.30) * (1.15 - throttle * 0.45), now, 0.06);
+    this.lopeDepth.gain.setTargetAtTime(
+      target * (0.42 - revShare * 0.30) * (1.15 - throttle * 0.45) * this.voiceLope, now, 0.06);
 
     // Suodin aukeaa kaasulla: kiihdytyksessä ääni kirkastuu, kaasua nostaessa tummuu.
-    this.engineFilter.frequency.setTargetAtTime(360 + revShare * 2100 + throttle * 1900, now, 0.045);
+    // voiceCut avaa suodinta korkeakierroksisille moottoreille: ilman sita V10:n
+    // ylapaa leikkautuisi pois ja kirkuna kuulostaisi tukahdutetulta.
+    this.engineFilter.frequency.setTargetAtTime(
+      Math.max(220, 360 + this.voiceCut + revShare * 2100 + throttle * 1900), now, 0.045);
     this.engineFilter.Q.setTargetAtTime(1.0 + throttle * 0.9, now, 0.08);
     this.exhaust.frequency.setTargetAtTime(88 + revShare * 60, now, 0.06);
 
     this.engineNoiseFilter.frequency.setTargetAtTime(200 + revShare * 700, now, 0.06);
     this.engineNoiseGain.gain.setTargetAtTime(0.012 + throttle * 0.032 + revShare * 0.018, now, 0.06);
 
-    const boost = Math.max(0, revShare - 0.35) * throttle;
+    // Ahdin ei seuraa kaasua hetkessä: siinä on massaa, joka kiihtyy ja hidastuu
+    // viiveellä. Nousu on nopeampi kuin lasku, koska pakokaasu kiihdyttaa
+    // turbiinia voimakkaammin kuin laakerikitka hidastaa sita.
+    const turboLevel = spec.upgrades.turbo || 0;
+    const boostTarget = Math.max(0, revShare - 0.35) * throttle;
+    if (this.boost === undefined) this.boost = 0;
+    const spoolRate = boostTarget > this.boost ? 3.4 : 1.7;
+    this.boost += (boostTarget - this.boost) * Math.min(1, spoolRate * dt);
     this.turbo.frequency.setTargetAtTime(2600 + revShare * 5200, now, 0.08);
-    this.turboGain.gain.setTargetAtTime(boost * 0.035 * (spec.upgrades.turbo > 0 ? 1 : 0.35), now, 0.09);
+    this.turboGain.gain.setTargetAtTime(this.boost * 0.035 * (turboLevel > 0 ? 1 : 0.35), now, 0.09);
+
+    // Popoff-venttiili: kaasun sulkeutuessa ahtimen tuottama paine purkautuu.
+    // Se vaatii oikeasti painetta - tyhjakaynnilla kaasun nostaminen ei sihahda.
+    this.bovTimer = Math.max(0, (this.bovTimer || 0) - dt);
+    const lifted = (this.prevThrottle || 0) > 0.55 && throttle < 0.15;
+    if (lifted && this.boost > 0.12 && this.bovTimer <= 0 && !opts.muted) {
+      this.bovTimer = 0.35;
+      this.blowoff(Math.min(1, this.boost * (0.5 + turboLevel * 0.35)));
+      this.boost *= 0.35;
+    }
+    this.prevThrottle = throttle;
 
     // Vinkuna kaikkien renkaiden yhteenlasketusta liukumasta.
     let slip = 0;

@@ -12,7 +12,7 @@
 // niita lainkaan.
 
 import * as THREE from '../vendor/three.module.min.js';
-import { asphaltTexture, concreteTexture, toTexture } from './textures.js';
+import { asphaltTexture, concreteTexture, signTexture, toTexture } from './textures.js';
 
 // Moottoritie
 const MW_Z = -630;          // keskilinja
@@ -149,6 +149,7 @@ export class Districts {
     this.layout();
     this.buildMotorway();
     this.buildAirport();
+    this.buildSigns();
   }
 
   addSlab(x0, x1, z0, z1, grip, kind) {
@@ -500,6 +501,41 @@ export class Districts {
     }
     this.group.add(g);
     this.disposables.push(body, trim);
+  }
+
+  // Opaste tulotien suulla. Kentta ei nay kaupungin kaduille - valissa on
+  // korttelirivi - joten ilman kylttia sinne osuu vain vahingossa.
+  //
+  // Taulu katsoo itaan eli kaupunkiin pain, koska sielta tullaan. Nuoli osoittaa
+  // ylos: kuljettajalle "jatka suoraan", ja suoraan on lantta eli kentalle.
+  buildSigns() {
+    const roadEndX = this.city.minX - 40;        // portti aidassa
+    const signX = roadEndX + 26;                 // kaupungin puolella porttia
+    const apronX = (AP_X0 + AP_X1) / 2;
+    const km = Math.round(Math.abs(signX - apronX) / 100) / 10;
+
+    const tex = toTexture(signTexture('AIRPORT', 'up', km + ' km'), 1);
+    const boardW = 9, boardH = 4.5, postH = 2.6;
+    const board = new THREE.Mesh(
+      new THREE.PlaneGeometry(boardW, boardH),
+      new THREE.MeshStandardMaterial({ map: tex, roughness: 0.85, metalness: 0 })
+    );
+    // Taso katsoo oletuksena +Z:aan; +X:aan kaannetaan neljanneskierroksella.
+    board.rotation.y = Math.PI / 2;
+    board.position.set(signX, postH + boardH / 2, this.accessZ + 15);
+    board.castShadow = true;
+    this.group.add(board);
+
+    // Kaksi jalkaa. Ne jaavat tien reunan ulkopuolelle, joten niihin ei aja.
+    const postGeo = new THREE.BoxGeometry(0.34, postH + boardH / 2, 0.34);
+    const postMat = new THREE.MeshStandardMaterial({ color: 0x8a9098, roughness: 0.9 });
+    for (const dz of [-boardW * 0.32, boardW * 0.32]) {
+      const post = new THREE.Mesh(postGeo, postMat);
+      post.position.set(signX, (postH + boardH / 2) / 2, this.accessZ + 15 + dz);
+      post.castShadow = true;
+      this.group.add(post);
+    }
+    this.disposables.push(board.geometry, board.material, tex, postGeo, postMat);
   }
 
   // Aita kentan ympari. Tulotien kohdalle jaa aukko, muuten sinne ei paase.
